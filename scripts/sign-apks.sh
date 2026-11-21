@@ -35,14 +35,31 @@ for variant in debug release; do
         --ks-pass env:NSOX_STORE_PASSWORD --key-pass env:NSOX_STORE_PASSWORD \
         --v1-signing-enabled true --v2-signing-enabled true --v3-signing-enabled true \
         --v4-signing-enabled false --out "$out" "${apks[0]}"
-    "$signer" verify --verbose --print-certs --Werr "$out" | tee "$scratch/cert.txt"
-    python3 -B - "$scratch/cert.txt" "$pin" "$variant" "$out" <<'PY'
+    LC_ALL=C "$signer" verify --verbose --print-certs --Werr "$out" | tee "$scratch/cert.txt"
+    python3 -I -B - "$scratch/cert.txt" "$pin" "$variant" "$out" <<'PY'
 import hashlib,json,os,re,sys
 from pathlib import Path
 cert,pin,variant,raw=sys.argv[1:]; p=Path(raw)
-text=Path(cert).read_text()
-assert [x.lower() for x in re.findall(r'(?m)^Signer #\d+ certificate SHA-256 digest: ([0-9a-fA-F]+)\s*$',text)]==[pin], 'Signer digest/count mismatch'
-assert re.search(r'(?m)^Verified using v2 scheme .*: true$', text), 'v2 signature required'
+report=Path(cert).read_text()
+# apksigner releases label a single certificate differently. Keep the
+# certificate pin independent of the report style and fail on ambiguity.
+lines = [line.strip() for line in report.splitlines()]
+counts = [line for line in lines if line.startswith('Number of signers:')]
+if counts != ['Number of signers: 1']:
+    raise SystemExit('Signing certificate verification refused: expected exactly one signer')
+pattern = re.compile(r'(?:Signer #1 |V[123](?:\.[0-9]+)? Signer(?: #1)?: )certificate SHA-256 digest: ([0-9a-fA-F]{64})')
+digests = []
+for line in lines:
+    if 'certificate SHA-256 digest:' not in line:
+        continue
+    match = pattern.fullmatch(line)
+    if match is None:
+        raise SystemExit('Signing certificate verification refused: unknown signer report')
+    digests.append(match.group(1).lower())
+if not re.fullmatch(r'[0-9a-f]{64}', pin) or not digests or any(value != pin for value in digests):
+    raise SystemExit('Signing certificate mismatch')
+if not re.search(r'(?m)^Verified using v2 scheme .*: true\s*$', report):
+    raise SystemExit('v2 signature required')
 metadata=dict(schema=1, repository=os.environ['GITHUB_REPOSITORY'], head_sha=os.environ['GITHUB_SHA'],run_id=int(os.environ['GITHUB_RUN_ID']), run_attempt=int(os.environ['GITHUB_RUN_ATTEMPT']),variant=variant,apk=p.name,sha256=hashlib.sha256(p.read_bytes()).hexdigest(),signer_sha256=pin)
 (p.parent/'build.json').write_text(json.dumps(metadata,indent=2,sort_keys=True)+'\n')
 print('NSOX_SIGN_VERIFIED='+variant+' '+pin)

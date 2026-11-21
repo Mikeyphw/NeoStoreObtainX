@@ -20,7 +20,7 @@ trap 'if [[ -n $staged ]]; then rm -f -- "$staged"; fi; rm -rf -- "$scratch"' EX
 printf '\n=== Discover latest successful signed main build ===\n'
 gh api "repos/$REPO/actions/workflows/signed-apks.yml" > "$scratch/workflow.json"
 gh api --method GET "repos/$REPO/actions/workflows/signed-apks.yml/runs" -f branch=main -f status=success -F per_page=100 > "$scratch/runs.json"
-read -r run_id attempt commit < <(python3 -B - "$scratch" <<'PY'
+read -r run_id attempt commit < <(python3 -I -B - "$scratch" <<'PY'
 import json,sys,re
 from pathlib import Path
 p=Path(sys.argv[1]); w=json.loads((p/'workflow.json').read_text()); rows=json.loads((p/'runs.json').read_text())['workflow_runs']
@@ -35,7 +35,7 @@ PY
 printf 'NSOX_DOWNLOAD_RUN=%s attempt=%s commit=%s variant=%s\n' "$run_id" "$attempt" "$commit" "$variant"
 name="nsox-signed-$variant-$attempt"
 gh api "repos/$REPO/actions/runs/$run_id/artifacts?per_page=100" > "$scratch/artifacts.json"
-artifact_id=$(python3 -B - "$scratch/artifacts.json" "$name" "$run_id" "$commit" <<'PY'
+artifact_id=$(python3 -I -B - "$scratch/artifacts.json" "$name" "$run_id" "$commit" <<'PY'
 import json,sys
 p,name,run,commit=sys.argv[1:]; rows=json.load(open(p))['artifacts']; matches=[x for x in rows if x['name']==name and x['expired'] is False and x['workflow_run']['id']==int(run) and x['workflow_run']['head_sha']==commit and x['workflow_run']['head_branch']=='main']
 assert len(matches)==1, 'Missing/ambiguous/expired signed artifact; no fallback to old APK'
@@ -46,7 +46,7 @@ printf 'NSOX_DOWNLOAD_ARTIFACT=%s %s\n' "$artifact_id" "$name"
 mkdir "$scratch/artifact"
 gh run download "$run_id" --repo "$REPO" --name "$name" --dir "$scratch/artifact"
 file="NeoStoreObtainX-$variant.apk"
-python3 -B - "$scratch/artifact" "$variant" "$pin" "$run_id" "$attempt" "$commit" <<'PY'
+python3 -I -B - "$scratch/artifact" "$variant" "$pin" "$run_id" "$attempt" "$commit" <<'PY'
 from pathlib import Path
 import json,hashlib,sys
 raw,variant,pin,run,attempt,sha=sys.argv[1:]; p=Path(raw); apk='NeoStoreObtainX-'+variant+'.apk'
@@ -57,13 +57,31 @@ expected=dict(schema=1,repository='Mikeyphw/NeoStoreObtainX',head_sha=sha,run_id
 assert m==expected, 'APK digest or source provenance mismatch'
 print('NSOX_DOWNLOAD_METADATA=VERIFIED')
 PY
-apksigner verify --verbose --print-certs --Werr "$scratch/artifact/$file" | tee "$scratch/cert.txt"
-python3 -B - "$scratch/cert.txt" "$pin" <<'PY'
+LC_ALL=C apksigner verify --verbose --print-certs --Werr "$scratch/artifact/$file" | tee "$scratch/cert.txt"
+python3 -I -B - "$scratch/cert.txt" "$pin" <<'PY'
 from pathlib import Path
 import sys,re
-s=Path(sys.argv[1]).read_text()
-assert [x.lower() for x in re.findall(r'(?m)^Signer #\d+ certificate SHA-256 digest: ([0-9a-fA-F]+)\s*$',s)]==[sys.argv[2]], 'Signing certificate mismatch'
-assert re.search(r'(?m)^Verified using v2 scheme .*: true$',s), 'v2 signature required'
+report=Path(sys.argv[1]).read_text()
+pin=sys.argv[2]
+# apksigner releases label a single certificate differently. Keep the
+# certificate pin independent of the report style and fail on ambiguity.
+lines = [line.strip() for line in report.splitlines()]
+counts = [line for line in lines if line.startswith('Number of signers:')]
+if counts != ['Number of signers: 1']:
+    raise SystemExit('Signing certificate verification refused: expected exactly one signer')
+pattern = re.compile(r'(?:Signer #1 |V[123](?:\.[0-9]+)? Signer(?: #1)?: )certificate SHA-256 digest: ([0-9a-fA-F]{64})')
+digests = []
+for line in lines:
+    if 'certificate SHA-256 digest:' not in line:
+        continue
+    match = pattern.fullmatch(line)
+    if match is None:
+        raise SystemExit('Signing certificate verification refused: unknown signer report')
+    digests.append(match.group(1).lower())
+if not re.fullmatch(r'[0-9a-f]{64}', pin) or not digests or any(value != pin for value in digests):
+    raise SystemExit('Signing certificate mismatch')
+if not re.search(r'(?m)^Verified using v2 scheme .*: true\s*$', report):
+    raise SystemExit('v2 signature required')
 print('NSOX_DOWNLOAD_SIGNATURE=VERIFIED')
 PY
 OUT="$DEST/NeoStoreObtainX-$variant-${commit:0:12}-r${run_id}a${attempt}.apk"
