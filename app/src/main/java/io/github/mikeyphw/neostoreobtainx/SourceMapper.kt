@@ -28,6 +28,17 @@ object SourceMapper {
             return SourceMapping.Unsupported("Requires plain HTTPS repository URL without credentials or query")
         }
         val host = uri.host.lowercase()
+        // A canonical site adapter must not silently substitute its main repo
+        // for an archive, alternate path or nonstandard port on the same host.
+        val path = (uri.rawPath ?: "").trimEnd('/').removeSuffix("/index.xml")
+        if ((host == "f-droid.org" || host == "www.f-droid.org") &&
+            (path != "/repo" || (uri.port != -1 && uri.port != 443))) {
+            return SourceMapping.Unsupported("Unrecognized official repository path or port")
+        }
+        if (host == "apt.izzysoft.de" &&
+            (path != "/fdroid/repo" || (uri.port != -1 && uri.port != 443))) {
+            return SourceMapping.Unsupported("Unrecognized Izzy repository path or port")
+        }
         val id = URLEncoder.encode(packageName, StandardCharsets.UTF_8.name())
         if (host == "f-droid.org" || host == "www.f-droid.org") {
             return SourceMapping.Mapped("https://f-droid.org/packages/$id")

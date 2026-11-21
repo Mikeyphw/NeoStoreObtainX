@@ -12,7 +12,7 @@ import java.lang.reflect.Field
 import java.lang.reflect.Method
 
 /**
- * M1 intentionally does not create any View, launch Intent or change downloads.
+ * M3 observes the pinned host; only an explicit tap may invoke the separate bridge.
  * Reads the host's NavBackStack and the matching AppPageVM StateFlow, in-process.
  * All retained Activity/ViewModel references are weak; polling stops on pause.
  */
@@ -25,7 +25,8 @@ internal class NeoStorePageProbe private constructor(private val symbols: Symbol
         val coreState: Method, val stateValue: Method,
         val suggestedRepo: Method, val embeddedProduct: Method,
         val productPackage: Method, val productRepositoryId: Method,
-        val repositoryId: Method, val repositoryAddress: Method,
+        val repositoryId: Method, val repositoryAddress: Method, val repositoryAuthentication: Method,
+        val pairFirst: Method, val pairSecond: Method,
     )
 
     companion object {
@@ -48,6 +49,7 @@ internal class NeoStorePageProbe private constructor(private val symbols: Symbol
                 val product = host("com.machiav3lli.fdroid.data.database.entity.Product")
                 val repository = host("com.machiav3lli.fdroid.data.database.entity.Repository")
                 val stateFlow = host("kotlinx.coroutines.flow.StateFlow")
+                val hostPair = host("kotlin.Pair")
                 val setApp = publicMethod(viewModel, "setApp", String::class.java)
                 val onResume = activityClass.getDeclaredMethod("onResume").apply { isAccessible = true }
 
@@ -58,6 +60,8 @@ internal class NeoStorePageProbe private constructor(private val symbols: Symbol
                     publicMethod(core, "getSuggestedProductRepo"), publicMethod(embedded, "getProduct"),
                     publicMethod(product, "getPackageName"), publicMethod(product, "getRepositoryId"),
                     publicMethod(repository, "getId"), publicMethod(repository, "getAddress"),
+                    publicMethod(repository, "getAuthentication"),
+                    publicMethod(hostPair, "getFirst"), publicMethod(hostPair, "getSecond"),
                 )
                 val watcher = NeoStorePageProbe(symbols)
                 // Hook only a named, source-pinned VM setter and an actual NeoActivity override.
@@ -75,16 +79,19 @@ internal class NeoStorePageProbe private constructor(private val symbols: Symbol
                         }
                     }
                 })
-                XposedBridge.log("NSOX_M1_HOOKS=INSTALLED_READ_ONLY")
+                XposedBridge.log("NSOX_M3_HOOKS=INSTALLED_USER_ACTION")
             } catch (error: ReflectiveOperationException) {
                 XposedBridge.log("NSOX_M1_REFUSED=SOURCE_SYMBOLS_" + error.javaClass.simpleName)
             } catch (error: LinkageError) {
                 XposedBridge.log("NSOX_M1_REFUSED=SOURCE_LINKAGE_" + error.javaClass.simpleName)
+            } catch (error: RuntimeException) {
+                XposedBridge.log("NSOX_M3_REFUSED=HOOK_RUNTIME_" + error.javaClass.simpleName)
             }
         }
     }
 
     private val main = Handler(Looper.getMainLooper())
+    private val action = ObtainXPageAction()
     private var registered = false
     private var currentActivity: WeakReference<Activity>? = null
     private var currentVm: WeakReference<Any>? = null
@@ -144,7 +151,9 @@ internal class NeoStorePageProbe private constructor(private val symbols: Symbol
         if (token != generation) return
         val activity = currentActivity?.get() ?: return
         try {
-            val snapshot = sample(activity)
+            val page = currentBinding(activity)
+            val snapshot = page?.snapshot ?: ProbeSnapshot(ProbePhase.IDLE)
+            action.render(activity, page) { displayed -> launchForTap(token, displayed) }
             if (lastPhase != snapshot.phase) {
                 lastPhase = snapshot.phase
                 // Do not log package IDs, repository URLs, credentials or app labels.
@@ -158,8 +167,8 @@ internal class NeoStorePageProbe private constructor(private val symbols: Symbol
             XposedBridge.log("NSOX_M1_REFUSED=RUNTIME_LINKAGE_" + error.javaClass.simpleName)
             stop()
             return
-        } catch (error: ClassCastException) {
-            XposedBridge.log("NSOX_M1_REFUSED=RUNTIME_TYPE_MISMATCH")
+        } catch (error: RuntimeException) {
+            XposedBridge.log("NSOX_M3_REFUSED=RUNTIME_" + error.javaClass.simpleName)
             stop()
             return
         }
@@ -169,10 +178,40 @@ internal class NeoStorePageProbe private constructor(private val symbols: Symbol
         main.postDelayed(next, POLL_MS)
     }
 
-    private fun sample(activity: Activity): ProbeSnapshot {
+    private fun currentBinding(activity: Activity): PageBinding? {
         val stack = symbols.navStack.get(activity) as? List<*>
-        val top = stack?.lastOrNull()
-        if (top == null || !symbols.appRouteClass.isInstance(top)) return ProbeSnapshot(ProbePhase.IDLE)
+        val top = stack?.lastOrNull() ?: return null
+        if (!symbols.appRouteClass.isInstance(top)) return null
+        return PageBinding(top, sample(top))
+    }
+
+    /** Called only from the attached button's click listener, on the main thread. */
+    private fun launchForTap(token: Int, displayed: PageBinding) {
+        val activity = currentActivity?.get() ?: return
+        if (token != generation || !action.visible(activity)) return
+        try {
+            val fresh = currentBinding(activity)
+            if (!ActionPolicy.allowsTap(displayed, fresh, action.visible(activity)) || fresh == null) {
+                action.result(activity, BridgeOutcome.Refused(BridgeFailure.STALE_OR_UNSAFE_SOURCE))
+                return
+            }
+            val outcome = ObtainXIntentBridge.launchFromUserTap(activity, fresh.snapshot, fresh.snapshot.packageName)
+            action.result(activity, outcome)
+            val diagnostic = when (outcome) {
+                BridgeOutcome.DispatchedForPreview -> "DISPATCHED_FOR_PREVIEW"
+                is BridgeOutcome.Refused -> outcome.reason.name
+            }
+            XposedBridge.log("NSOX_M3_TAP=" + diagnostic)
+        } catch (error: Exception) {
+            XposedBridge.log("NSOX_M3_REFUSED=TAP_" + error.javaClass.simpleName)
+            action.clear()
+        } catch (error: LinkageError) {
+            XposedBridge.log("NSOX_M3_REFUSED=TAP_LINKAGE_" + error.javaClass.simpleName)
+            action.clear()
+        }
+    }
+
+    private fun sample(top: Any): ProbeSnapshot {
         val active = symbols.routePackage.invoke(top) as? String
         val vm = currentVm?.get()
         if (vm == null || viewModelPackage != active) {
@@ -180,9 +219,16 @@ internal class NeoStorePageProbe private constructor(private val symbols: Symbol
         }
         val flow = symbols.coreState.invoke(vm)
         val state = symbols.stateValue.invoke(flow)
-        val pair = symbols.suggestedRepo.invoke(state) as? Pair<*, *>
-        val embedded = pair?.first
-        val repo = pair?.second
+        // Resolve host Kotlin Pair via its own classloader rather than casting
+        // it to the module's possibly different Kotlin runtime.
+        val pair = symbols.suggestedRepo.invoke(state)
+        val embedded = pair?.let { symbols.pairFirst.invoke(it) }
+        val repo = pair?.let { symbols.pairSecond.invoke(it) }
+        // Authentication is a separate host field, not necessarily in the URL.
+        // Never transfer a repository that uses it, even without URI credentials.
+        if (repo != null && (symbols.repositoryAuthentication.invoke(repo) as? String) != "") {
+            return ProbeSnapshot(ProbePhase.UNSUPPORTED_SOURCE)
+        }
         val product = embedded?.let { symbols.embeddedProduct.invoke(it) }
         val productPkg = product?.let { symbols.productPackage.invoke(it) as? String }
         val productId = product?.let { symbols.productRepositoryId.invoke(it) as? Long }
@@ -196,6 +242,7 @@ internal class NeoStorePageProbe private constructor(private val symbols: Symbol
         pending?.let(main::removeCallbacks)
         pending = null
         currentActivity = null
+        action.clear()
         if (lastPhase != ProbePhase.IDLE) {
             lastPhase = ProbePhase.IDLE
             XposedBridge.log("NSOX_M1_PAGE_STATE=IDLE")
@@ -207,10 +254,12 @@ internal class NeoStorePageProbe private constructor(private val symbols: Symbol
     }
 
     override fun onActivityDestroyed(activity: Activity) {
+        if (!symbols.activityClass.isInstance(activity)) return
         if (currentActivity?.get() === activity) stop()
-        // Recomposition and rotation must not keep dead ViewModels alive.
-        currentVm = null
-        viewModelPackage = null
+        if (currentActivity?.get() == null) {
+            currentVm = null
+            viewModelPackage = null
+        }
     }
 
     override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) = Unit

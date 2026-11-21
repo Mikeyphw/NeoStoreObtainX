@@ -17,21 +17,30 @@
 - [ ] On-device LSPosed test on supported Neo Store APK: navigation, back, background, rotation and stale metadata.
 - [ ] UI acceptance on portrait/multiwindow/large-font/dark/AMOLED is deferred to M3 (no M1 view).
 
-## M2 — Intent bridge (this candidate)
+## M2 — Intent bridge (merged in PR #3)
 - [x] Use `obtainium://app/<Uri-encoded JSON>` with exact ObtainX `App.fromJson` required fields.
 - [x] Revalidate M1 READY snapshot against **current route** and freshly computed source mapping before encoding.
 - [x] Encode `additionalSettings` as a JSON string, including `appIdOrName` for third-party F-Droid repos and `overrideSource=FDroidRepo`.
 - [x] Build package-scoped `ACTION_VIEW` for `dev.bikram.obtainx`, verify exported matching handler and catch Android launch errors.
 - [x] No automatic launch, database writes, network calls, download queue or Install/Update interception.
 - [x] Kotlin unit tests and Python static/contract regression tests.
-- [ ] Exact-head hosted Gradle assembly, unit tests and lint for M2.
+- [x] Exact-head hosted M2 CI passed, PR HEAD `3dc57d82d69bb615d3a4e51c1554e08b84263a26`, merge `dcd2cfcbdfcf29fc188e40f58dcb2e33588e3a1c`.
 - [ ] Real-device ObtainX 2.21.0 import-preview verification for official, Izzy and third-party repositories; no saved-app claim from an Intent dispatch.
 - [ ] UI invocation deferred to M3; M2 API alone cannot open ObtainX.
 
-## M3 — UX & lifecycle
-- Add Material-aligned chip, settings toggle and failure states.
-- Verify no overlay leaks, no duplicate chips, no stale app identity or unexpected taps.
-- Test light/dark/AMOLED, small-screen portrait, font scales, gesture navigation, Android 15/16.
+## Persistent signing — merged in PR #4
+- [x] Main-only signing workflow, one persistent project certificate for debug and release.
+- [x] Exact main `39d5ff87eced9c715bde9a438d0662428c5e0626` passed Android CI run 44869397124 and signed-build run 44869397197; both signed artifacts published.
+- [x] Preserve signing workflow, scripts, certificate pin, environment secrets and downloader in M3.
+- [ ] Device signature continuity and M3 post-merge signed artifact acceptance.
+
+## M3 — UX & lifecycle (this candidate)
+- [x] Native, high-contrast bottom-end Add to ObtainX button, only on a validated app route; no Compose internals or Install/Update interception.
+- [x] Source and route identity re-read on explicit tap; debounce, handler errors, separate credentialed-repo refusal.
+- [x] Accessible text, English/Portuguese labels, long-press settings, private namespaced action preference; disabled action leaves a small settings icon.
+- [x] Cleanup on pause/destroy, route change, focus loss, IME, unsupported source; pure Kotlin tap-policy tests and structural regression.
+- [ ] Hosted exact-head Android assembly, unit tests and lint.
+- [ ] Real-device visual and lifecycle acceptance: light/dark/AMOLED, portrait, font scale, cutouts/insets, TalkBack, Android 15/16, duplicate taps, original controls and ObtainX preview.
 
 ## M4 — Production acceptance
 - Pin exact upstream versions, test installed APKs, verify CI workflows and native Devtool receipts.

@@ -37,4 +37,9 @@ class SourceMapperTest {
     @Test fun malformedPackageNameFailsClosed() {
         assertTrue(SourceMapper.map("../bad", "https://f-droid.org/repo") is SourceMapping.Unsupported)
     }
+    @Test fun officialArchiveAndAlternatePortCannotSilentlyChangeSource() {
+        assertTrue(SourceMapper.map("org.example.app", "https://f-droid.org/archive") is SourceMapping.Unsupported)
+        assertTrue(SourceMapper.map("org.example.app", "https://f-droid.org:8443/repo") is SourceMapping.Unsupported)
+        assertTrue(SourceMapper.map("org.example.app", "https://apt.izzysoft.de/other/repo") is SourceMapping.Unsupported)
+    }
 }

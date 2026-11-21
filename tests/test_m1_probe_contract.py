@@ -36,7 +36,7 @@ class M1ProbeContract(unittest.TestCase):
         self.assertIn('WeakReference<Activity>', self.probe)
         self.assertIn('WeakReference<Any>', self.probe)
 
-    def test_m1_never_changes_app_content_or_launches_obtainx(self):
+    def test_probe_never_directly_launches_or_mutates_host_content(self):
         all_new = self.entry + self.probe + self.policy
         for forbidden in ['DownloadWorker', 'startActivity(', 'Intent(', 'addView(', 'WindowManager',
                           'enqueue(', 'hookAllMethods(', 'XC_MethodReplacement', 'PackageInstaller']:
