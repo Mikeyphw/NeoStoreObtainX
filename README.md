@@ -2,7 +2,7 @@
 
 A Neo Store–scoped LSPosed module to transfer selected app listings to ObtainX while keeping repository identity intact.
 
-> **Bootstrap stage only**: The packaged Xposed entrypoint verifies Neo Store process scoping and logs a diagnostic. It does **not yet** inject a button, intercept downloads, start ObtainX, or install anything. Those behaviors require separately reviewed and device-validated milestones.
+> **M1 read-only detection**: the LSPosed entrypoint observes Neo Store 1.3.3 navigation and its matching app/repository metadata, logging only state transitions. It does **not** display a button, intercept downloads, start ObtainX, or install anything. Runtime behavior requires device acceptance.
 
 ## Scope
 
@@ -15,7 +15,7 @@ See [audit](docs/SOURCE_AUDIT.md), [implementation plan](docs/IMPLEMENTATION_PLA
 
 ## Build / verification
 
-The bootstrap does **not** require Gradle on Termux. Hosted CI uses JDK 17, Android SDK 35, Gradle 8.11.1, AGP 8.9.2, Kotlin 2.1.20.
+The M1 native overlay does **not** require Gradle on Termux; hosted CI runs the real Android build. Hosted CI uses JDK 17, Android SDK 35, Gradle 8.11.1, AGP 8.9.2, Kotlin 2.1.20.
 
 ```bash
 python3 -B -m unittest discover -s tests -p 'test_*.py' -v
@@ -25,3 +25,7 @@ gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug :app:lintDebug
 Gradle is expected from a trusted local installation or the pinned GitHub Actions setup; a wrapper binary is not invented or downloaded by the handoff.
 
 No release or Android-device acceptance is implied by a passing CI build.
+
+## M1 read-only probe
+
+Read [the M1 acceptance plan](docs/M1_READONLY_ACCEPTANCE.md) for exact version gating, lifecycle behavior, privacy, and on-device validation. No UI is injected until M2/M3.
