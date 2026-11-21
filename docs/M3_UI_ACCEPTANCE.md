@@ -70,3 +70,16 @@ commands, install, merge or release are performed by this overlay operator.
 
 DEVICE_ACCEPTANCE=NOT_PERFORMED
 RELEASE=NOT_PERFORMED
+
+## M4 runtime compatibility addendum — candidate, device acceptance pending
+
+The initial M3 release failed to install page hooks: the Neo Store 1.3.3
+release APK retains `NeoActivity.onResume` and `navStack`, but R8 removes
+`AppPageVM.setApp` and Kotlin getters used in the original hook resolver.
+A direct installed-DEX audit verified the specific retained fields listed
+in `M4_R8_ACCEPTANCE.md`. M4 uses constructor observation and field-only
+reflection; no source mutation, credential transfer, automatic import or
+install is allowed. Presence/position of the button is still unverified.
+
+DEVICE_ACCEPTANCE=NOT_PERFORMED
+RELEASE=NOT_PERFORMED

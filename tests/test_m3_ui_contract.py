@@ -34,8 +34,8 @@ class M3UiContract(unittest.TestCase):
         self.assertNotIn('removeAllViews', self.ui)
         self.assertNotIn('setContentView(', self.ui)
     def test_read_only_host_and_authenticated_repo_refusal(self):
-        self.assertIn('publicMethod(repository, "getAuthentication")', self.probe)
-        self.assertIn('(symbols.repositoryAuthentication.invoke(repo) as? String) != ""', self.probe)
+        self.assertIn('releaseField(repository, "authentication")', self.probe)
+        self.assertIn('(symbols.repositoryAuthentication.get(repo) as? String) != ""', self.probe)
         self.assertIn('val hostPair = host("kotlin.Pair")', self.probe)
         self.assertNotIn('as? Pair<', self.probe)
         for t in ['DownloadWorker','PackageInstaller','enqueue(', 'SQLiteDatabase','ContentResolver','ACTION_SEND','setResult(']:

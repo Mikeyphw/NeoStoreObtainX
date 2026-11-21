@@ -20,7 +20,9 @@ class M1ProbeContract(unittest.TestCase):
 
     def test_no_composable_or_compiler_generated_hook(self):
         self.assertIn('getDeclaredMethod("onResume")', self.probe)
-        self.assertIn('publicMethod(viewModel, "setApp", String::class.java)', self.probe)
+        self.assertIn('XposedBridge.hookAllConstructors(viewModel,', self.probe)
+        self.assertIn('releaseField(viewModel, "packageName")', self.probe)
+        self.assertNotIn('"setApp"', self.probe)
         self.assertNotIn('AppPageKt', self.probe)
         self.assertNotIn('Composer', self.probe)
 
