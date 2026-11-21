@@ -12,7 +12,7 @@ class M3UiContract(unittest.TestCase):
         self.policy = (J/'ActionPolicy.kt').read_text()
         self.bridge = (J/'ObtainXIntentBridge.kt').read_text()
     def test_only_click_dispatches(self):
-        self.assertIn('action.render(activity, page) { displayed -> launchForTap(token, displayed) }', self.probe)
+        self.assertIn('onTap = { displayed -> launchForTap(token, displayed) }', self.probe)
         self.assertIn('val fresh = currentBinding(activity)', self.probe)
         self.assertIn('ActionPolicy.allowsTap(displayed, fresh, action.visible(activity))', self.probe)
         self.assertIn('onTap(currentPage)', self.ui)

@@ -65,3 +65,10 @@ No claims of completed device or release qualification.
 - [x] Replace bottom-floating text button with accessibility-anchored tonal icon.
 - [ ] Hosted compilation, unit tests and lint.
 - [ ] Real-device header positioning, screen reader, rotation and target import acceptance.
+
+
+## M6 — Guarded header visibility recovery (corrective candidate)
+- [x] Preserve semantic anchoring when accessible.
+- [x] Add bounded, host-version-pinned header fallback without bottom floating action.
+- [x] Add minimal static UI visibility diagnostics to LSPosed logs.
+- [ ] Exact-head Android CI and device portrait/landscape/density acceptance.

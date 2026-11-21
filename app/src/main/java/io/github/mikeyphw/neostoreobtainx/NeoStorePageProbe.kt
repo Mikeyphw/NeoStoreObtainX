@@ -114,6 +114,7 @@ internal class NeoStorePageProbe private constructor(private val symbols: Symbol
     private var generation = 0
     private var lastPhase = ProbePhase.IDLE
     private var versionDenied = false
+    private var lastUiAnchor: String? = null
 
     private fun observeViewModel(vm: Any) {
         val reference = WeakReference(vm)
@@ -169,7 +170,15 @@ internal class NeoStorePageProbe private constructor(private val symbols: Symbol
         try {
             val page = currentBinding(activity)
             val snapshot = page?.snapshot ?: ProbeSnapshot(ProbePhase.IDLE)
-            action.render(activity, page) { displayed -> launchForTap(token, displayed) }
+            action.render(activity, page,
+                onTap = { displayed -> launchForTap(token, displayed) },
+                onAnchor = { mode ->
+                    if (lastUiAnchor != mode) {
+                        lastUiAnchor = mode
+                        // Static status marker only; no source, package or screen contents.
+                        XposedBridge.log("NSOX_M6_UI_ANCHOR=" + mode)
+                    }
+                })
             if (lastPhase != snapshot.phase) {
                 lastPhase = snapshot.phase
                 // Do not log package IDs, repository URLs, credentials or app labels.
@@ -268,6 +277,7 @@ internal class NeoStorePageProbe private constructor(private val symbols: Symbol
         pending = null
         currentActivity = null
         action.clear()
+        lastUiAnchor = null
         if (lastPhase != ProbePhase.IDLE) {
             lastPhase = ProbePhase.IDLE
             XposedBridge.log("NSOX_M1_PAGE_STATE=IDLE")

@@ -49,3 +49,14 @@ perfect theme matching and responsive reflow.
 
 DEVICE_ACCEPTANCE=NOT_PERFORMED
 RELEASE=NOT_PERFORMED
+
+
+## M6 visibility correction
+
+The first M5 device screenshot showed `NSOX_M1_PAGE_STATE=READY`, but the
+header icon was missing. `root.createAccessibilityNodeInfo()` plus `getChild()`
+was not a reliable way to enumerate Compose's virtual semantics from inside
+an ordinary Android process, especially without a connected accessibility
+service. M6 introduces a guarded layout fallback for the pinned host version;
+see `M6_HEADER_VISIBILITY_ACCEPTANCE.md`. This does **not** establish device
+acceptance: icon visibility, non-overlap and correctness require a new test.

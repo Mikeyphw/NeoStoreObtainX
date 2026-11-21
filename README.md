@@ -61,3 +61,14 @@ no host Compose mutation or bottom-floating action remains. Header colors
 are approximated with system tonal values, not read from private Compose state.
 The icon hides when the anchor cannot be located safely, including small
 screens; it is not claimed to be a Compose child. See M5 acceptance docs.
+
+
+## M6 — Guarded header placement recovery
+
+M5's `root.createAccessibilityNodeInfo()` traversal cannot reliably access
+Compose virtual descendants from an ordinary in-process View. M6 adds a guarded
+fallback based on the pinned Neo Store 1.3.3 header geometry, while retaining
+semantic anchoring when it works. It logs **only static anchor states** such as
+`NSOX_M6_UI_ANCHOR=PINNED_HEADER_FALLBACK`. The icon is still a separate native
+View; it is not a Compose child and must pass actual device visual acceptance.
+No floating-bottom fallback or host UI mutation. Version 0.6.1 (code 7).
