@@ -86,3 +86,29 @@ to ObtainX. ObtainX itself resolves existing listings after user taps.
 A future, independent status API for the user's ObtainX fork is documented in
 `docs/FUTURE_OBTAINX_FORK_STATUS.md`. It is not implemented or a dependency.
 M7 device and release acceptance remain pending.
+
+
+## Droid-ify host integration (M8)
+
+In addition to the existing Neo Store 1.3.3 hook, the module can attach an
+**explicit** native action to Droid-ify 0.7.8 (`com.looker.droidify`, versionCode
+780) app-detail toolbars. Enable **both** packages in LSPosed scope and restart
+Droid-ify after installing module 0.8.0-m8-droidify (versionCode 9).
+
+The native toolbar action is offered when Droid-ify is showing an app-detail
+fragment. On tap, it re-reads that fragment's current package and selected
+Product/Repository pair. A matching public HTTPS repository or supported
+upstream source is sent through the same ObtainX import-preview-only bridge as
+Neo Store. Missing metadata, a changed route, authenticated repositories or
+unsupported host versions are rejected. No host data, install queues, or
+private app library is modified. ObtainX's existing duplicate detection remains
+responsible for previously tracked apps. No live tracked-status query is added.
+
+This initial pin is based on Droid-ify's public v0.7.8 source. Other versions,
+including the experimental Compose detail implementation, are *not* claimed
+supported. `NSOX_M8_DROIDIFY` markers do not include package IDs or URLs.
+
+Device testing and hosted Android compilation remain required for acceptance.
+See `docs/M8_DROIDIFY_ACCEPTANCE.md`.
+
+Droid-ify source pinned for M8: `Droid-ify/client` source commit `ff1453ed957f3b2382abce9a7eb9a9db8def3a3a` (tree `5ecefe5bfbc77e68d3cff486b162e2d7ee156983`).

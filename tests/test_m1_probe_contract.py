@@ -15,8 +15,10 @@ class M1ProbeContract(unittest.TestCase):
         cls.policy = (JAVA / 'ProbePolicy.kt').read_text()
 
     def test_hook_scoped_to_single_application_process(self):
-        self.assertIn('lpparam.packageName != TargetPackages.NEO_STORE', self.entry)
-        self.assertIn('lpparam.processName != TargetPackages.NEO_STORE', self.entry)
+        self.assertIn('lpparam.processName != lpparam.packageName', self.entry)
+        self.assertIn('TargetPackages.NEO_STORE ->', self.entry)
+        self.assertIn('TargetPackages.DROIDIFY ->', self.entry)
+        self.assertIn('NeoStorePageProbe.install(loader)', self.entry)
 
     def test_no_composable_or_compiler_generated_hook(self):
         self.assertIn('getDeclaredMethod("onResume")', self.probe)

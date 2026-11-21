@@ -84,3 +84,17 @@ No claims of completed device or release qualification.
 - [x] Document a separate future ObtainX-fork status interface without shipping it.
 - [ ] Hosted Android compilation, unit tests and lint for M7 PR head.
 - [ ] Signed M7 APK and device UI acceptance, including installed app icon access.
+
+
+## M8 — Additive Droid-ify host support (initial target 0.7.8)
+
+Reuse existing typed source/seed/intent policies. Add a separate DroidifyPageHook
+for the legacy app-detail Fragment, version-pinned to 0.7.8/780. Add one
+module-owned MenuItem to the native toolbar; no Compose child, floating overlay,
+repo DB writes, or ObtainX fork modifications. Recheck fragment lifecycle,
+package route, product+repository identity, and authenticated repo on tap.
+
+Scope: `com.machiav3lli.fdroid` and `com.looker.droidify` (independent hooks).
+No changes to Neo Store's previously accepted M7 UI. Defer any Compose-only
+Droid-ify UI or other host version until separate release-Dex device evidence.
+Document tests and fail-closed acceptance in M8_DROIDIFY_ACCEPTANCE.md.
