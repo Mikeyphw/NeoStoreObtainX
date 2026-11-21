@@ -8,6 +8,6 @@
         <meta-data android:name="xposedmodule" android:value="true" />
         <meta-data android:name="xposedminversion" android:value="82" />
         <meta-data android:name="xposeddescription" android:resource="@string/module_description" />
-        <meta-data android:name="xposedscope" android:value="com.machiav3lli.fdroid" />
+        <meta-data android:name="xposedscope" android:value="com.machiav3lli.fdroid,com.looker.droidify" />
     </application>
 </manifest>

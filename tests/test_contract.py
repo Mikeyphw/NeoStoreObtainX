@@ -18,7 +18,7 @@ class BootstrapContractTests(unittest.TestCase):
         manifest = ET.parse(BASE / "AndroidManifest.xml")
         rows = {node.attrib.get(ANDROID + "name"):node for node in manifest.iter("meta-data")}
         self.assertEqual(rows["xposedmodule"].attrib[ANDROID + "value"], "true")
-        self.assertEqual(rows["xposedscope"].attrib[ANDROID + "value"], "com.machiav3lli.fdroid")
+        self.assertEqual(rows["xposedscope"].attrib[ANDROID + "value"], "com.machiav3lli.fdroid,com.looker.droidify")
         self.assertEqual(rows["xposedminversion"].attrib[ANDROID + "value"], "82")
 
     def test_xposed_api_is_not_packaged(self):
@@ -28,7 +28,8 @@ class BootstrapContractTests(unittest.TestCase):
 
     def test_no_non_neo_store_hook_or_download_mutation(self):
         source = (BASE / "java/io/github/mikeyphw/neostoreobtainx/NeoStoreEntry.kt").read_text()
-        self.assertIn('lpparam.packageName != TargetPackages.NEO_STORE', source)
+        self.assertIn('TargetPackages.NEO_STORE ->', source)
+        self.assertIn('TargetPackages.DROIDIFY ->', source)
         self.assertNotRegex(source, r"DownloadWorker|enqueue\(|startActivity\(")
 
     def test_obtainx_identity_source_mapping(self):
