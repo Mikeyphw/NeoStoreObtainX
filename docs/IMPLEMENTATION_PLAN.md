@@ -9,7 +9,7 @@
 
 ## M1 — Read-only page detection (merged in PR #2)
 - [x] Pin source contract to Neo Store 1.3.3 / versionCode 1304; fail closed for other installed versions.
-- [x] Observe `NeoActivity.onResume` + `AppPageVM.setApp` without hooking Compose compiler-generated code.
+- [x] Observe `NeoActivity.onResume` + `AppPageVM` constructors, using R8-retained fields for route-matched state; do not hook Compose compiler-generated code.
 - [x] Read activity navigation stack and suggested product/repo, accepting metadata only when IDs match.
 - [x] In-memory only; no UI, Intent, downloads, DB writes or sensitive diagnostic logs.
 - [x] Add pure Kotlin policy and structure regression tests.
@@ -49,3 +49,11 @@
 
 ## Non-goals
 No ObtainX DB writes, no system_server hooks, no silent installs, no root shell actions, no 24-shard Python Devtool regression attached to this separate Android repo.
+
+### M4 R8 compatibility corrective patch
+
+The M3 release candidate did not render the action because its getter/setter
+reflection failed on Neo Store 1.3.3. The M4 patch changes only the module
+probe, version and structural tests/docs, retains the exact app/intent policy
+and signing infrastructure, and requires new signed Android device acceptance.
+No claims of completed device or release qualification.

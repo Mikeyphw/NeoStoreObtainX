@@ -39,3 +39,12 @@ See [M3 acceptance](docs/M3_UI_ACCEPTANCE.md) for placement, long-press settings
 ## Signed APK downloads
 
 Only the trusted `main` signing workflow publishes APKs. Debug and release use the same persistent project certificate. PR CI still builds and tests both variants, but never publishes APKs signed with the project key. See [Signing and downloads](docs/APK_SIGNING.md).
+
+## Neo Store release R8 compatibility (M4 corrective candidate)
+
+The actual Neo Store 1.3.3 release APK removes Kotlin getters and
+`AppPageVM.setApp` that the original M3 probe expected. M4 uses retained
+DEX fields with `AppPageVM` constructor hooks and matches the route against
+`packageName` StateFlow on each poll/tap. Version 0.5.0-m4-r8-fields (5) must
+pass device acceptance before any UI/ObtainX success is claimed. See
+`docs/M4_R8_ACCEPTANCE.md`.

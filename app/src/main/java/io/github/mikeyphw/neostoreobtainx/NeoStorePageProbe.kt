@@ -12,21 +12,23 @@ import java.lang.reflect.Field
 import java.lang.reflect.Method
 
 /**
- * M3 observes the pinned host; only an explicit tap may invoke the separate bridge.
- * Reads the host's NavBackStack and the matching AppPageVM StateFlow, in-process.
- * All retained Activity/ViewModel references are weak; polling stops on pause.
+ * M4 observes Neo Store 1.3.3 release through retained, source-pinned fields.
+ * R8 removes the Kotlin getters and inlines AppPageVM.setApp in the production APK.
+ * Constructor observation and route-matched StateFlows replace that brittle hook.
+ * Never writes host objects or launches ObtainX except from an explicit tap.
  */
 internal class NeoStorePageProbe private constructor(private val symbols: Symbols) :
     Application.ActivityLifecycleCallbacks {
 
     private data class Symbols(
         val activityClass: Class<*>, val navStack: Field,
-        val appRouteClass: Class<*>, val routePackage: Method,
-        val coreState: Method, val stateValue: Method,
-        val suggestedRepo: Method, val embeddedProduct: Method,
-        val productPackage: Method, val productRepositoryId: Method,
-        val repositoryId: Method, val repositoryAddress: Method, val repositoryAuthentication: Method,
-        val pairFirst: Method, val pairSecond: Method,
+        val appRouteClass: Class<*>, val routePackage: Field,
+        val vmPackageFlow: Field, val vmCoreStateFlow: Field,
+        val stateValue: Method,
+        val suggestedRepo: Field, val embeddedProduct: Field,
+        val productPackage: Field, val productRepositoryId: Field,
+        val repositoryId: Field, val repositoryAddress: Field, val repositoryAuthentication: Field,
+        val pairFirst: Field, val pairSecond: Field,
     )
 
     companion object {
@@ -37,11 +39,13 @@ internal class NeoStorePageProbe private constructor(private val symbols: Symbol
         fun install(classLoader: ClassLoader) {
             try {
                 fun host(name: String) = Class.forName(name, false, classLoader)
-                fun publicMethod(owner: Class<*>, name: String, vararg args: Class<*>) =
-                    owner.getMethod(name, *args)
+                // Every field below was observed in the installed 1.3.3 release DEX.
+                // Strict declared-field lookup is intentionally fail-closed.
+                fun releaseField(owner: Class<*>, name: String) =
+                    owner.getDeclaredField(name).apply { isAccessible = true }
 
                 val activityClass = host("com.machiav3lli.fdroid.NeoActivity")
-                val navField = activityClass.getDeclaredField("navStack").apply { isAccessible = true }
+                val navField = releaseField(activityClass, "navStack")
                 val appRoute = host("com.machiav3lli.fdroid.ui.navigation.NavRoute\$App")
                 val viewModel = host("com.machiav3lli.fdroid.viewmodels.AppPageVM")
                 val core = host("com.machiav3lli.fdroid.viewmodels.CoreAppState")
@@ -50,36 +54,45 @@ internal class NeoStorePageProbe private constructor(private val symbols: Symbol
                 val repository = host("com.machiav3lli.fdroid.data.database.entity.Repository")
                 val stateFlow = host("kotlinx.coroutines.flow.StateFlow")
                 val hostPair = host("kotlin.Pair")
-                val setApp = publicMethod(viewModel, "setApp", String::class.java)
                 val onResume = activityClass.getDeclaredMethod("onResume").apply { isAccessible = true }
-
                 val symbols = Symbols(
                     activityClass, navField,
-                    appRoute, publicMethod(appRoute, "getPackageName"),
-                    publicMethod(viewModel, "getCoreAppState"), publicMethod(stateFlow, "getValue"),
-                    publicMethod(core, "getSuggestedProductRepo"), publicMethod(embedded, "getProduct"),
-                    publicMethod(product, "getPackageName"), publicMethod(product, "getRepositoryId"),
-                    publicMethod(repository, "getId"), publicMethod(repository, "getAddress"),
-                    publicMethod(repository, "getAuthentication"),
-                    publicMethod(hostPair, "getFirst"), publicMethod(hostPair, "getSecond"),
+                    appRoute, releaseField(appRoute, "packageName"),
+                    releaseField(viewModel, "packageName"), releaseField(viewModel, "coreAppState"),
+                    stateFlow.getMethod("getValue"),
+                    releaseField(core, "suggestedProductRepo"), releaseField(embedded, "product"),
+                    releaseField(product, "packageName"), releaseField(product, "repositoryId"),
+                    releaseField(repository, "id"), releaseField(repository, "address"),
+                    releaseField(repository, "authentication"),
+                    releaseField(hostPair, "first"), releaseField(hostPair, "second"),
                 )
                 val watcher = NeoStorePageProbe(symbols)
-                // Hook only a named, source-pinned VM setter and an actual NeoActivity override.
-                XposedBridge.hookMethod(setApp, object : XC_MethodHook() {
+                // Release APK contains the VM constructor (arity 6), not setApp.
+                // Hook all constructors so no compiler-generated setter is required.
+                val constructorHooks = XposedBridge.hookAllConstructors(viewModel, object : XC_MethodHook() {
                     override fun afterHookedMethod(param: MethodHookParam) {
                         if (param.throwable == null) {
-                            watcher.observeViewModel(param.thisObject, param.args[0] as? String)
+                            watcher.observeViewModel(param.thisObject)
                         }
                     }
                 })
-                XposedBridge.hookMethod(onResume, object : XC_MethodHook() {
-                    override fun afterHookedMethod(param: MethodHookParam) {
-                        if (param.throwable == null) {
-                            (param.thisObject as? Activity)?.let(watcher::attachOnResume)
+                if (constructorHooks.isEmpty()) {
+                    XposedBridge.log("NSOX_M4_REFUSED=NO_VM_CONSTRUCTOR_HOOK")
+                    return
+                }
+                try {
+                    XposedBridge.hookMethod(onResume, object : XC_MethodHook() {
+                        override fun afterHookedMethod(param: MethodHookParam) {
+                            if (param.throwable == null) {
+                                (param.thisObject as? Activity)?.let(watcher::attachOnResume)
+                            }
                         }
-                    }
-                })
-                XposedBridge.log("NSOX_M3_HOOKS=INSTALLED_USER_ACTION")
+                    })
+                } catch (error: RuntimeException) {
+                    constructorHooks.forEach { it.unhook() }
+                    throw error
+                }
+                XposedBridge.log("NSOX_M4_HOOKS=INSTALLED_R8_FIELDS")
             } catch (error: ReflectiveOperationException) {
                 XposedBridge.log("NSOX_M1_REFUSED=SOURCE_SYMBOLS_" + error.javaClass.simpleName)
             } catch (error: LinkageError) {
@@ -94,18 +107,21 @@ internal class NeoStorePageProbe private constructor(private val symbols: Symbol
     private val action = ObtainXPageAction()
     private var registered = false
     private var currentActivity: WeakReference<Activity>? = null
-    private var currentVm: WeakReference<Any>? = null
-    private var viewModelPackage: String? = null
+    // Only weak references are retained; a bounded list accommodates navigation
+    // between simultaneously retained AppPageVM instances without stale packages.
+    private val viewModels = mutableListOf<WeakReference<Any>>()
     private var pending: Runnable? = null
     private var generation = 0
     private var lastPhase = ProbePhase.IDLE
     private var versionDenied = false
 
-    private fun observeViewModel(vm: Any, packageName: String?) {
+    private fun observeViewModel(vm: Any) {
+        val reference = WeakReference(vm)
         main.post {
-            // Only retain a weak reference; version and route must also match at sampling time.
-            currentVm = WeakReference(vm)
-            viewModelPackage = packageName
+            val candidate = reference.get() ?: return@post
+            viewModels.removeAll { it.get() == null || it.get() === candidate }
+            viewModels.add(reference)
+            while (viewModels.size > 24) viewModels.removeAt(0)
         }
     }
 
@@ -212,29 +228,36 @@ internal class NeoStorePageProbe private constructor(private val symbols: Symbol
     }
 
     private fun sample(top: Any): ProbeSnapshot {
-        val active = symbols.routePackage.invoke(top) as? String
-        val vm = currentVm?.get()
-        if (vm == null || viewModelPackage != active) {
-            return ProbePolicy.resolve(active, viewModelPackage, null, null, null, null)
+        val active = symbols.routePackage.get(top) as? String
+        // A constructor callback is not a package-selection signal. Read the
+        // host MutableStateFlow anew and select only a VM matching this route.
+        var matchingVm: Any? = null
+        for (reference in viewModels.asReversed()) {
+            val vm = reference.get() ?: continue
+            val packageFlow = symbols.vmPackageFlow.get(vm) ?: continue
+            if ((symbols.stateValue.invoke(packageFlow) as? String) == active) {
+                matchingVm = vm
+                break
+            }
         }
-        val flow = symbols.coreState.invoke(vm)
-        val state = symbols.stateValue.invoke(flow)
-        // Resolve host Kotlin Pair via its own classloader rather than casting
-        // it to the module's possibly different Kotlin runtime.
-        val pair = symbols.suggestedRepo.invoke(state)
-        val embedded = pair?.let { symbols.pairFirst.invoke(it) }
-        val repo = pair?.let { symbols.pairSecond.invoke(it) }
-        // Authentication is a separate host field, not necessarily in the URL.
-        // Never transfer a repository that uses it, even without URI credentials.
-        if (repo != null && (symbols.repositoryAuthentication.invoke(repo) as? String) != "") {
+        if (matchingVm == null) {
+            return ProbePolicy.resolve(active, null, null, null, null, null)
+        }
+        val coreFlow = symbols.vmCoreStateFlow.get(matchingVm)
+        val state = coreFlow?.let { symbols.stateValue.invoke(it) }
+        val pair = state?.let { symbols.suggestedRepo.get(it) }
+        val embedded = pair?.let { symbols.pairFirst.get(it) }
+        val repo = pair?.let { symbols.pairSecond.get(it) }
+        // Fail closed for null/credentialed authentication even for plain URLs.
+        if (repo != null && (symbols.repositoryAuthentication.get(repo) as? String) != "") {
             return ProbeSnapshot(ProbePhase.UNSUPPORTED_SOURCE)
         }
-        val product = embedded?.let { symbols.embeddedProduct.invoke(it) }
-        val productPkg = product?.let { symbols.productPackage.invoke(it) as? String }
-        val productId = product?.let { symbols.productRepositoryId.invoke(it) as? Long }
-        val repoId = repo?.let { symbols.repositoryId.invoke(it) as? Long }
-        val repoUrl = repo?.let { symbols.repositoryAddress.invoke(it) as? String }
-        return ProbePolicy.resolve(active, viewModelPackage, productPkg, productId, repoId, repoUrl)
+        val product = embedded?.let { symbols.embeddedProduct.get(it) }
+        val productPkg = product?.let { symbols.productPackage.get(it) as? String }
+        val productId = product?.let { symbols.productRepositoryId.get(it) as? Long }
+        val repoId = repo?.let { symbols.repositoryId.get(it) as? Long }
+        val repoUrl = repo?.let { symbols.repositoryAddress.get(it) as? String }
+        return ProbePolicy.resolve(active, active, productPkg, productId, repoId, repoUrl)
     }
 
     private fun stop() {
@@ -256,9 +279,9 @@ internal class NeoStorePageProbe private constructor(private val symbols: Symbol
     override fun onActivityDestroyed(activity: Activity) {
         if (!symbols.activityClass.isInstance(activity)) return
         if (currentActivity?.get() === activity) stop()
+        // Do not retain dead VMs; live references remain weak and bounded.
         if (currentActivity?.get() == null) {
-            currentVm = null
-            viewModelPackage = null
+            viewModels.removeAll { it.get() == null }
         }
     }
 

@@ -15,8 +15,8 @@ Source-level probes:
 - `NeoActivity.onResume()` is a real override, not a Compose compiler bridge.
 - Private `NeoActivity.navStack: NavBackStack<NavRoute>` is read, never mutated;
   top item must be `NavRoute.App` with `packageName` matching the current VM.
-- `AppPageVM.setApp(String)` after-hook only captures a weak VM reference.
-- `getCoreAppState()` exposes StateFlow; `getSuggestedProductRepo()` yields
+- `AppPageVM` constructor after-hook captures a bounded weak VM reference; release R8 removed `setApp(String)` as an invokable method.
+- `coreAppState` field exposes StateFlow; `suggestedProductRepo` field yields
   `Pair<EmbeddedProduct, Repository>`.
 - `EmbeddedProduct.product.packageName`, `Product.repositoryId`,
   `Repository.id`, and `Repository.address` are checked before source mapping.
@@ -70,3 +70,7 @@ Sensitive source URLs or full LSPosed logcat must not be copied to clipboard.
 6. `delivery session ci` verifies the committed base policy and real workflow ID.
 7. Android-device acceptance is separate. **No merge or release qualification**
    is performed by the operator automatically.
+
+M4 corrective note: Neo Store 1.3.3 release optimizes away getters and `setApp`.
+The module must use audited declared fields and route-matched StateFlow values;
+missing fields refuse injection. The installed release DEX audit is documented in `M4_R8_ACCEPTANCE.md`.
