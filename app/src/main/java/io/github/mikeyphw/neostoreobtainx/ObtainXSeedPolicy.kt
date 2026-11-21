@@ -32,7 +32,7 @@ object ObtainXSeedPolicy {
         if (address.length > MAX_SOURCE_CHARS || address.any { it.isISOControl() }) {
             return ObtainXSeed.Refused(SeedRefusal.SOURCE_TOO_LONG)
         }
-        val canonical = SourceMapper.map(pkg, address)
+        val canonical = SourceMapper.preferred(pkg, address, snapshot.productSourceSite)
         if (canonical !is SourceMapping.Mapped ||
             canonical.url != snapshot.sourceUrl ||
             canonical.overrideSource != snapshot.overrideSource
@@ -40,13 +40,13 @@ object ObtainXSeedPolicy {
         if (canonical.url.length > MAX_SOURCE_CHARS) {
             return ObtainXSeed.Refused(SeedRefusal.SOURCE_TOO_LONG)
         }
-        if (canonical.overrideSource != null && canonical.overrideSource != "FDroidRepo") {
+        if (canonical.overrideSource != null && canonical.overrideSource !in setOf("FDroidRepo", "IzzyOnDroid")) {
             return ObtainXSeed.Refused(SeedRefusal.UNSUPPORTED_ADAPTER)
         }
         // ObtainX's App.fromJson requires additionalSettings to be a JSON STRING.
         // Custom F-Droid repositories also require appIdOrName; its adapter is
         // never auto-selected, hence the explicit FDroidRepo override.
-        val settings = if (canonical.overrideSource == "FDroidRepo") {
+        val settings = if (canonical.overrideSource == "FDroidRepo" || canonical.overrideSource == "IzzyOnDroid") {
             "{\"appIdOrName\":${quote(pkg)}}"
         } else "{}"
         val appJson = buildString {

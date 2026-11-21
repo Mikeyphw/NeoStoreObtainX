@@ -49,4 +49,14 @@ class ProbePolicyTest {
         assertNull(state.repositoryAddress)
         assertNull(state.sourceUrl)
     }
+    @Test fun preferredSourceIsBoundToValidatedProductAndRoute() {
+        val ready = ProbePolicy.resolve("org.example.app", "org.example.app", "org.example.app",
+            7L, 7L, "https://f-droid.org/repo", "https://github.com/acme/client")
+        assertEquals("https://github.com/acme/client", ready.sourceUrl)
+        assertEquals("https://github.com/acme/client", ready.productSourceSite)
+        assertEquals(ProbePhase.WAITING,
+            ProbePolicy.resolve("org.other.app", "org.example.app", "org.example.app",
+                7L, 7L, "https://f-droid.org/repo", "https://github.com/acme/client").phase)
+    }
+
 }

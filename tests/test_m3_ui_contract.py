@@ -44,7 +44,7 @@ class M3UiContract(unittest.TestCase):
         self.assertIn('minimumHeight = dp(activity, 48)', self.ui)
         self.assertIn('IMPORTANT_FOR_ACCESSIBILITY_YES', self.ui)
         self.assertIn('WindowInsets.Type.ime()', self.ui)
-        self.assertIn('WindowInsets.Type.displayCutout()', self.ui)
+        self.assertIn('anchor(activity, root)', self.ui)
         self.assertIn('setOnLongClickListener', self.ui)
         self.assertIn('"io.github.mikeyphw.neostoreobtainx.ui", Context.MODE_PRIVATE', self.ui)
         self.assertIn('putBoolean("show_action", which == 0)', self.ui)

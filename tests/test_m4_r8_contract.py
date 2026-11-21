@@ -19,7 +19,7 @@ class ReleaseR8ProbeContract(unittest.TestCase):
             ('activityClass','navStack'),('appRoute','packageName'),
             ('viewModel','packageName'),('viewModel','coreAppState'),
             ('core','suggestedProductRepo'),('embedded','product'),
-            ('product','packageName'),('product','repositoryId'),
+            ('product','packageName'),('product','repositoryId'),('product','source'),('product','web'),
             ('repository','id'),('repository','address'),
             ('repository','authentication'),('hostPair','first'),('hostPair','second')]:
             self.assertIn(f'releaseField({owner}, "{field}")', self.probe)
@@ -41,7 +41,7 @@ class ReleaseR8ProbeContract(unittest.TestCase):
             'val packageFlow = symbols.vmPackageFlow.get(vm)',
             '(symbols.stateValue.invoke(packageFlow) as? String) == active',
             'return ProbePolicy.resolve(active, null, null, null, null, null)',
-            'return ProbePolicy.resolve(active, active, productPkg, productId, repoId, repoUrl)',
+            'return ProbePolicy.resolve(active, active, productPkg, productId, repoId, repoUrl, productSource)',
             'val fresh = currentBinding(activity)',
             'ActionPolicy.allowsTap(displayed, fresh, action.visible(activity))',
         ]: self.assertIn(s,self.probe)
@@ -64,8 +64,8 @@ class ReleaseR8ProbeContract(unittest.TestCase):
 
     def test_version_upgrade_and_signing_not_reworked(self):
         gradle=(ROOT/'app/build.gradle.kts').read_text()
-        self.assertIn('versionCode = 5',gradle)
-        self.assertIn('versionName = "0.5.0-m4-r8-fields"',gradle)
+        self.assertIn('versionCode = 6',gradle)
+        self.assertIn('versionName = "0.6.0-m5-source-header"',gradle)
         doc=(ROOT/'docs/M4_R8_ACCEPTANCE.md').read_text()
         self.assertIn('DEVICE_ACCEPTANCE=NOT_PERFORMED',doc)
         self.assertIn('RELEASE=NOT_PERFORMED',doc)

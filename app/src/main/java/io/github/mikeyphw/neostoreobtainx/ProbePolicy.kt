@@ -9,6 +9,7 @@ data class ProbeSnapshot(
     val repositoryAddress: String? = null,
     val sourceUrl: String? = null,
     val overrideSource: String? = null,
+    val productSourceSite: String? = null,
 )
 
 object ProbePolicy {
@@ -20,6 +21,7 @@ object ProbePolicy {
         productRepositoryId: Long?,
         repositoryId: Long?,
         repositoryAddress: String?,
+        productSourceSite: String? = null,
     ): ProbeSnapshot {
         if (activePackage.isNullOrBlank()) return ProbeSnapshot(ProbePhase.IDLE)
         val waiting = ProbeSnapshot(ProbePhase.WAITING, packageName = activePackage)
@@ -27,9 +29,9 @@ object ProbePolicy {
             productRepositoryId == null || repositoryId == null ||
             productRepositoryId != repositoryId || repositoryAddress.isNullOrBlank()
         ) return waiting
-        return when (val mapped = SourceMapper.map(activePackage, repositoryAddress)) {
+        return when (val mapped = SourceMapper.preferred(activePackage, repositoryAddress, productSourceSite)) {
             is SourceMapping.Mapped -> ProbeSnapshot(
-                ProbePhase.READY, activePackage, repositoryAddress, mapped.url, mapped.overrideSource,
+                ProbePhase.READY, activePackage, repositoryAddress, mapped.url, mapped.overrideSource, productSourceSite,
             )
             is SourceMapping.Unsupported -> ProbeSnapshot(
                 ProbePhase.UNSUPPORTED_SOURCE, packageName = activePackage,

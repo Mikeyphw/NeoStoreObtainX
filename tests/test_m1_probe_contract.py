@@ -53,7 +53,7 @@ class M1ProbeContract(unittest.TestCase):
         self.assertIn('activePackage != viewModelPackage', self.policy)
         self.assertIn('activePackage != productPackage', self.policy)
         self.assertIn('productRepositoryId != repositoryId', self.policy)
-        self.assertLess(self.policy.index('productRepositoryId != repositoryId'), self.policy.index('SourceMapper.map('))
+        self.assertLess(self.policy.index('productRepositoryId != repositoryId'), self.policy.index('SourceMapper.preferred('))
 
     def test_no_extra_android_permissions_or_runtime_dependencies(self):
         manifest = (ROOT / 'app/src/main/AndroidManifest.xml').read_text()
