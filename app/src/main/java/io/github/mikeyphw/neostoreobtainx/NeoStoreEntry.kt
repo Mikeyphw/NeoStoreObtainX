@@ -4,7 +4,7 @@ import de.robv.android.xposed.IXposedHookLoadPackage
 import de.robv.android.xposed.XposedBridge
 import de.robv.android.xposed.callbacks.XC_LoadPackage
 
-/** Neo Store 1.3.3 only: M1 read-only page/repository probe, no UI or Intent. */
+/** Neo Store 1.3.3 only: M3 page probe and explicit, additive ObtainX action. */
 class NeoStoreEntry : IXposedHookLoadPackage {
     override fun handleLoadPackage(lpparam: XC_LoadPackage.LoadPackageParam) {
         if (lpparam.packageName != TargetPackages.NEO_STORE) return

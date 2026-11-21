@@ -16,8 +16,10 @@ class M2BridgeContract(unittest.TestCase):
         cls.bridge = (JAVA/'ObtainXIntentBridge.kt').read_text()
         cls.tests = (TESTS/'ObtainXSeedPolicyTest.kt').read_text()
 
-    def test_m1_hook_still_does_not_call_bridge_or_start_activity(self):
-        self.assertNotIn('ObtainXIntentBridge', self.entry + self.probe)
+    def test_entrypoint_does_not_launch_and_probe_only_uses_tap_bridge(self):
+        self.assertNotIn('ObtainXIntentBridge', self.entry)
+        self.assertEqual(self.probe.count('ObtainXIntentBridge.launchFromUserTap('), 1)
+        self.assertIn('if (!ActionPolicy.allowsTap(displayed, fresh, action.visible(activity))', self.probe)
         self.assertNotIn('startActivity(', self.entry + self.probe)
         self.assertNotIn('DownloadWorker', self.entry + self.probe)
 
@@ -66,8 +68,8 @@ class M2BridgeContract(unittest.TestCase):
 
     def test_version_bump_and_milestone_remains_pending(self):
         gradle = (ROOT/'app/build.gradle.kts').read_text()
-        self.assertIn('versionCode = 3', gradle)
-        self.assertIn('0.3.0-m2-bridge', gradle)
+        self.assertIn('versionCode = 4', gradle)
+        self.assertIn('0.4.0-m3-action', gradle)
         self.assertIn('this candidate', (ROOT/'docs/IMPLEMENTATION_PLAN.md').read_text())
         self.assertIn('**does not yet call the bridge**', (ROOT/'docs/M2_INTENT_BRIDGE_ACCEPTANCE.md').read_text())
 
