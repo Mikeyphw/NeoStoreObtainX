@@ -38,6 +38,13 @@ class SigningContract(unittest.TestCase):
         self.assertIn('nsox-signed-release-${{ github.run_attempt }}',t)
         self.assertEqual(t.count('secrets.NSOX_'),2)
         self.assertGreater(t.index('Publish verified debug APK'),t.index('run: bash scripts/sign-apks.sh'))
+    def test_signing_and_downloader_share_strict_report_policy(self):
+        def policy(p):
+            source=p.read_text(); start=source.index('# apksigner releases label')
+            end=source.index("raise SystemExit('v2 signature required')",start)+len("raise SystemExit('v2 signature required')")
+            return source[start:end]
+        self.assertEqual(policy(SIGN),policy(DOWNLOAD))
+        self.assertIn('Number of signers: 1',policy(SIGN))
     def test_scripts_bash_syntax(self):
         for p in (SIGN,DOWNLOAD): subprocess.run(['bash','-n',str(p)],check=True)
     def test_signing_refuses_wrong_source(self):
@@ -77,7 +84,16 @@ else: sys.exit(9)
 '''); gh.chmod(0o700)
         apk=self.bin/'apksigner'; apk.write_text('''#!/usr/bin/env bash
 set -Eeuo pipefail
-printf 'Verified using v2 scheme (APK Signature Scheme v2): true\\nSigner #1 certificate SHA-256 digest: %s\\n' "$MOCK_SIGNER"
+printf 'Verified using v2 scheme (APK Signature Scheme v2): %s\\nNumber of signers: %s\\n' "${MOCK_V2:-true}" "${MOCK_COUNT:-1}"
+case "${MOCK_REPORT:-numbered}" in
+    numbered) printf 'Signer #1 certificate SHA-256 digest: %s\\n' "$MOCK_SIGNER" ;;
+    scheme) printf 'V3.0 Signer: certificate SHA-256 digest: %s\\n' "$MOCK_SIGNER" ;;
+    both) printf 'Signer #1 certificate SHA-256 digest: %s\\nV3.0 Signer: certificate SHA-256 digest: %s\\n' "$MOCK_SIGNER" "$MOCK_SIGNER" ;;
+    conflict) printf 'Signer #1 certificate SHA-256 digest: %s\\nV3.0 Signer: certificate SHA-256 digest: %s\\n' "$MOCK_SIGNER" "$(printf '%064d' 0)" ;;
+    unknown) printf 'Signer #2 certificate SHA-256 digest: %s\\n' "$MOCK_SIGNER" ;;
+    missing) printf 'No certificate digest reported\\n' ;;
+    *) exit 2 ;;
+esac
 '''); apk.chmod(0o700)
     def call(self,variant='debug'):
         self.env['MOCK_VARIANT']=variant
@@ -86,6 +102,27 @@ printf 'Verified using v2 scheme (APK Signature Scheme v2): true\\nSigner #1 cer
         for v in ['debug','release']:
             r=self.call(v); self.assertEqual(r.returncode,0,r.stdout+r.stderr); self.assertIn('VERIFIED_NOT_INSTALLED',r.stdout)
         self.assertEqual(len(list(self.dest.glob('*.apk'))),2)
+    def test_termux_scheme_label_download(self):
+        self.env['MOCK_REPORT']='scheme'
+        r=self.call(); self.assertEqual(r.returncode,0,r.stdout+r.stderr)
+        self.assertIn('VERIFIED_NOT_INSTALLED',r.stdout)
+    def test_multiple_scheme_reports_same_single_signer(self):
+        self.env['MOCK_REPORT']='both'
+        r=self.call(); self.assertEqual(r.returncode,0,r.stdout+r.stderr)
+    def test_wrong_termux_certificate_refused(self):
+        self.env.update(MOCK_REPORT='scheme',MOCK_SIGNER='f'*64)
+        r=self.call(); self.assertNotEqual(r.returncode,0); self.assertFalse(list(self.dest.iterdir()))
+    def test_ambiguous_or_missing_reports_refused(self):
+        for report in ('conflict','unknown','missing'):
+            with self.subTest(report=report):
+                self.env['MOCK_REPORT']=report
+                r=self.call(); self.assertNotEqual(r.returncode,0,r.stdout); self.assertFalse(list(self.dest.iterdir()))
+    def test_multiple_signers_refused(self):
+        self.env.update(MOCK_COUNT='2',MOCK_REPORT='scheme')
+        r=self.call(); self.assertNotEqual(r.returncode,0); self.assertFalse(list(self.dest.iterdir()))
+    def test_missing_v2_refused(self):
+        self.env.update(MOCK_V2='false',MOCK_REPORT='scheme')
+        r=self.call(); self.assertNotEqual(r.returncode,0); self.assertFalse(list(self.dest.iterdir()))
     def test_missing_artifact_no_fallback(self):
         self.env['MOCK_MODE']='missing'; r=self.call(); self.assertNotEqual(r.returncode,0); self.assertFalse(list(self.dest.iterdir()))
     def test_wrong_certificate_never_published(self):

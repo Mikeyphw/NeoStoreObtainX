@@ -23,3 +23,7 @@ Install dependencies (`gh`, `python`, `apksigner`; apksigner includes a Java dep
 ## Acceptance
 
 Confirm environment rule and secret-name inventory, then after merge independently verify both artifacts on the same exact successful main run. Download both through the script and compare fingerprints. Test Android signature continuity/update on the actual device separately. Native Devtool delivery of source is distinct from hosted signing and device/release qualification.
+
+## Certificate report compatibility
+
+The verifier accepts both `Signer #1 certificate SHA-256 digest:` and scheme-labelled reports such as `V3.0 Signer: certificate SHA-256 digest:`. Exactly one signer, at least one recognized certificate digest, matching certificate pins in every digest, successful APK verification, and verified v2 signing remain mandatory. Unknown, missing, conflicting, or multi-signer reports fail closed. Reinstall the downloader from the reviewed repair; no certificate pin or signing-key rotation is required.
