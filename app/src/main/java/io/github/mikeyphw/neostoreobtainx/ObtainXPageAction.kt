@@ -109,6 +109,36 @@ internal class ObtainXPageAction {
         return found
     }
 
+    /** Guarded Neo Store 1.3.3 header geometry when detached AccessibilityNodeInfo
+     * cannot walk Compose virtual descendants. This is a measured layout fallback,
+     * NOT a Compose child or an attempt to invoke hidden Android accessibility APIs.
+     * Bound to the pinned host release and deliberately disabled on narrow windows. */
+    private fun pinnedHeaderSource(activity: Activity, root: FrameLayout): Rect? {
+        if (root.width < dp(activity, 365) || root.height < dp(activity, 160)) return null
+        val rootScreen = IntArray(2)
+        root.getLocationOnScreen(rootScreen)
+        val statusTop = if (Build.VERSION.SDK_INT >= 30)
+            root.rootWindowInsets?.getInsets(WindowInsets.Type.statusBars())?.top ?: 0
+        else {
+            @Suppress("DEPRECATION")
+            root.rootWindowInsets?.stableInsetTop ?: 0
+        }
+        // Root may already start below the status bar or extend behind it.
+        val uncoveredTop = (statusTop - rootScreen[1]).coerceAtLeast(0)
+        val cx = if (root.layoutDirection == View.LAYOUT_DIRECTION_RTL)
+            rootScreen[0] + dp(activity, 76)
+        else rootScreen[0] + root.width - dp(activity, 76)
+        val cy = rootScreen[1] + uncoveredTop + dp(activity, 36)
+        val half = dp(activity, 20)
+        val rect = Rect(cx - half, cy - half, cx + half, cy + half)
+        // Never place the anchor outside the visible header/content area.
+        return rect.takeIf {
+            it.left >= rootScreen[0] && it.right <= rootScreen[0] + root.width &&
+            it.top >= rootScreen[1] && it.bottom <= rootScreen[1] + root.height &&
+            it.bottom <= rootScreen[1] + uncoveredTop + dp(activity, 90)
+        }
+    }
+
     private fun position(activity: Activity, root: FrameLayout, view: ImageButton, source: Rect): Boolean {
         val rootLocation = IntArray(2)
         root.getLocationOnScreen(rootLocation)
@@ -178,20 +208,28 @@ internal class ObtainXPageAction {
         override fun getIntrinsicHeight(): Int = 24
     }
 
-    fun render(activity: Activity, page: PageBinding?, onTap: (PageBinding) -> Unit) {
+    fun render(activity: Activity, page: PageBinding?, onTap: (PageBinding) -> Unit,
+               onAnchor: (String) -> Unit = {}) {
         if (settingsDialog != null && (settingsRoute !== page?.route || !ActionPolicy.ready(page))) {
             settingsDialog?.dismiss(); settingsDialog = null; settingsRoute = null
         }
         if (!visible(activity) || !ActionPolicy.ready(page)) { removeButton(); return }
         val root = activity.findViewById<View>(android.R.id.content) as? FrameLayout
         if (root == null || !root.isShown || root.width < dp(activity, 230) ||
-            root.height < dp(activity, 160) || imeVisible(root)) { removeButton(); return }
-        val source = anchor(activity, root) ?: run { removeButton(); return }
+            root.height < dp(activity, 160) || imeVisible(root)) {
+            removeButton(); onAnchor("RENDER_CONDITIONS"); return
+        }
+        val semanticSource = try { anchor(activity, root) } catch (_: RuntimeException) { null }
+        val source = semanticSource ?: pinnedHeaderSource(activity, root)
+        if (source == null) { removeButton(); onAnchor("NO_SAFE_HEADER_POSITION"); return }
+        val anchorKind = if (semanticSource != null) "SEMANTIC" else "PINNED_HEADER_FALLBACK"
         val showAction = enabled(activity)
         val existing = button?.get()
         if (existing != null && existing.parent === root && binding?.route === page?.route &&
             binding?.snapshot == page?.snapshot && existing.tag == showAction) {
-            if (!position(activity, root, existing, source)) removeButton()
+            if (!position(activity, root, existing, source)) {
+                removeButton(); onAnchor("NO_ROOM")
+            } else onAnchor(anchorKind)
             return
         }
         removeButton()
@@ -234,7 +272,9 @@ internal class ObtainXPageAction {
         binding = currentPage
         button = WeakReference(view)
         root.addView(view, FrameLayout.LayoutParams(dp(activity, 48),dp(activity, 48),Gravity.TOP or Gravity.LEFT))
-        if (!position(activity,root,view,source)) removeButton()
+        if (!position(activity,root,view,source)) {
+            removeButton(); onAnchor("NO_ROOM")
+        } else onAnchor(anchorKind)
     }
 
     private fun settings(activity: Activity, route: Any) {
