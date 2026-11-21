@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">NeoStore → ObtainX</string>
+    <string name="module_description">Add Neo Store app listings to ObtainX without replacing Neo Store downloads</string>
+</resources>
