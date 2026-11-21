@@ -45,8 +45,8 @@ class M5Contract(unittest.TestCase):
         self.assertNotIn('XposedBridge.log(',ui)
     def test_version_and_pending_acceptance(self):
         gradle=(ROOT/'app/build.gradle.kts').read_text()
-        self.assertIn('versionCode = 7',gradle)
-        self.assertIn('0.6.1-m6-header-visibility',gradle)
+        self.assertIn('versionCode = 8',gradle)
+        self.assertIn('0.7.0-m7-branded-icon',gradle)
         doc=(ROOT/'docs/M5_SOURCE_HEADER_ACCEPTANCE.md').read_text()
         self.assertIn('DEVICE_ACCEPTANCE=NOT_PERFORMED',doc)
         self.assertIn('RELEASE=NOT_PERFORMED',doc)

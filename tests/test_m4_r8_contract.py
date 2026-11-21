@@ -64,8 +64,8 @@ class ReleaseR8ProbeContract(unittest.TestCase):
 
     def test_version_upgrade_and_signing_not_reworked(self):
         gradle=(ROOT/'app/build.gradle.kts').read_text()
-        self.assertIn('versionCode = 7',gradle)
-        self.assertIn('versionName = "0.6.1-m6-header-visibility"',gradle)
+        self.assertIn('versionCode = 8',gradle)
+        self.assertIn('versionName = "0.7.0-m7-branded-icon"',gradle)
         doc=(ROOT/'docs/M4_R8_ACCEPTANCE.md').read_text()
         self.assertIn('DEVICE_ACCEPTANCE=NOT_PERFORMED',doc)
         self.assertIn('RELEASE=NOT_PERFORMED',doc)

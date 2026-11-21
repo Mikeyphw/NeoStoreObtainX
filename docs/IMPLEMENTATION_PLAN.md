@@ -72,3 +72,15 @@ No claims of completed device or release qualification.
 - [x] Add bounded, host-version-pinned header fallback without bottom floating action.
 - [x] Add minimal static UI visibility diagnostics to LSPosed logs.
 - [ ] Exact-head Android CI and device portrait/landscape/density acceptance.
+
+
+## M7 — Branded icon only (candidate)
+- [x] Replace generic circled-plus with ObtainX launcher branding where accessible;
+  use a download-to-tray fallback otherwise.
+- [x] Keep a smaller 40dp tonal surface inside the existing 48dp tap target.
+- [x] Keep source preference, Izzy routing, M6 header anchoring and tap safety.
+- [x] Explicitly omit tracked/untracked status and badges for now; do not infer
+  tracking from successful Intent dispatch or app installation.
+- [x] Document a separate future ObtainX-fork status interface without shipping it.
+- [ ] Hosted Android compilation, unit tests and lint for M7 PR head.
+- [ ] Signed M7 APK and device UI acceptance, including installed app icon access.

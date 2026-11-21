@@ -72,3 +72,17 @@ semantic anchoring when it works. It logs **only static anchor states** such as
 `NSOX_M6_UI_ANCHOR=PINNED_HEADER_FALLBACK`. The icon is still a separate native
 View; it is not a Compose child and must pass actual device visual acceptance.
 No floating-bottom fallback or host UI mutation. Version 0.6.1 (code 7).
+
+
+## M7 — ObtainX-branded header action (module-only candidate)
+
+The Neo Store header action now tries to display ObtainX's installed launcher
+icon, falling back to a download-to-tray glyph when package visibility prevents
+reading it. Its tonal circle is 40dp within a 48dp touch target, preserving
+M6's guarded header position. It is a neutral **Open in ObtainX** action:
+there are no tracking-status probes, badges, exported providers, or changes
+to ObtainX. ObtainX itself resolves existing listings after user taps.
+
+A future, independent status API for the user's ObtainX fork is documented in
+`docs/FUTURE_OBTAINX_FORK_STATUS.md`. It is not implemented or a dependency.
+M7 device and release acceptance remain pending.
