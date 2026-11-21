@@ -68,8 +68,8 @@ class M2BridgeContract(unittest.TestCase):
 
     def test_version_bump_and_milestone_remains_pending(self):
         gradle = (ROOT/'app/build.gradle.kts').read_text()
-        self.assertIn('versionCode = 7', gradle)
-        self.assertIn('0.6.1-m6-header-visibility', gradle)
+        self.assertIn('versionCode = 8', gradle)
+        self.assertIn('0.7.0-m7-branded-icon', gradle)
         self.assertIn('this candidate', (ROOT/'docs/IMPLEMENTATION_PLAN.md').read_text())
         self.assertIn('**does not yet call the bridge**', (ROOT/'docs/M2_INTENT_BRIDGE_ACCEPTANCE.md').read_text())
 

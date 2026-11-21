@@ -39,8 +39,8 @@ class M6HeaderRecovery(unittest.TestCase):
 
     def test_release_pinned_and_device_pending(self):
         gradle=(ROOT/'app/build.gradle.kts').read_text()
-        self.assertIn('versionCode = 7',gradle)
-        self.assertIn('0.6.1-m6-header-visibility',gradle)
+        self.assertIn('versionCode = 8',gradle)
+        self.assertIn('0.7.0-m7-branded-icon',gradle)
         d=(ROOT/'docs/M6_HEADER_VISIBILITY_ACCEPTANCE.md').read_text()
         self.assertIn('DEVICE_ACCEPTANCE=NOT_PERFORMED',d)
         self.assertIn('RELEASE=NOT_PERFORMED',d)

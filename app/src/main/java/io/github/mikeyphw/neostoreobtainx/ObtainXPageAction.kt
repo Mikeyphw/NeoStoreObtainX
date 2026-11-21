@@ -5,6 +5,8 @@ import android.app.AlertDialog
 import android.content.Context
 import android.content.res.Configuration
 import android.content.res.ColorStateList
+import android.content.pm.PackageManager
+import android.graphics.drawable.InsetDrawable
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -166,10 +168,10 @@ internal class ObtainXPageAction {
         // Android 12+ system neutral palettes track Material You; otherwise a
         // neutral tonal fallback. Never read private host Compose state.
         val neutralId = activity.resources.getIdentifier(
-            if (night) "system_neutral2_700" else "system_neutral2_100", "color", "android")
+            if (night) "system_neutral2_800" else "system_neutral2_100", "color", "android")
         val surface = if (Build.VERSION.SDK_INT >= 31 && neutralId != 0)
             activity.resources.getColor(neutralId, activity.theme)
-        else if (night) Color.rgb(55, 55, 55) else Color.rgb(235, 235, 235)
+        else if (night) Color.rgb(45, 39, 35) else Color.rgb(235, 235, 235)
         return surface to (if (night) Color.WHITE else Color.rgb(35, 35, 35))
     }
 
@@ -195,9 +197,14 @@ internal class ObtainXPageAction {
                     canvas.drawLine(x1,y1,x2,y2,pen)
                 }
             } else {
-                canvas.drawCircle(cx, cy, 9f * scale, pen)
-                canvas.drawLine(cx - 5f * scale, cy, cx + 5f * scale, cy, pen)
-                canvas.drawLine(cx, cy - 5f * scale, cx, cy + 5f * scale, pen)
+                // Download arrow into tray is the explicit fallback icon when
+                // Android package visibility prevents loading ObtainX's icon.
+                canvas.drawLine(cx, cy - 8f * scale, cx, cy + 3f * scale, pen)
+                canvas.drawLine(cx - 4f * scale, cy - 1f * scale, cx, cy + 3f * scale, pen)
+                canvas.drawLine(cx + 4f * scale, cy - 1f * scale, cx, cy + 3f * scale, pen)
+                canvas.drawLine(cx - 8f * scale, cy + 7f * scale, cx - 8f * scale, cy + 10f * scale, pen)
+                canvas.drawLine(cx - 8f * scale, cy + 10f * scale, cx + 8f * scale, cy + 10f * scale, pen)
+                canvas.drawLine(cx + 8f * scale, cy + 7f * scale, cx + 8f * scale, cy + 10f * scale, pen)
             }
             pen.strokeWidth = oldWidth
         }
@@ -208,8 +215,68 @@ internal class ObtainXPageAction {
         override fun getIntrinsicHeight(): Int = 24
     }
 
-    fun render(activity: Activity, page: PageBinding?, onTap: (PageBinding) -> Unit,
-               onAnchor: (String) -> Unit = {}) {
+    /** The installed ObtainX launcher icon when Android permits it, or a
+     * recognizable download-to-tray fallback. No tracking inference. */
+    private class ObtainXBrandIcon(
+        private val appIcon: Drawable?,
+        private val fallbackColor: Int,
+    ) : Drawable() {
+        private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = fallbackColor
+            style = Paint.Style.STROKE
+            strokeWidth = 2.2f
+            strokeCap = Paint.Cap.ROUND
+            strokeJoin = Paint.Join.ROUND
+        }
+        override fun draw(canvas: Canvas) {
+            val rect = bounds
+            val unit = minOf(rect.width(), rect.height()) / 24f
+            val cx = rect.exactCenterX()
+            val cy = rect.exactCenterY()
+            val icon = appIcon
+            if (icon != null) {
+                // Never edit the target app's drawable; use a fresh instance.
+                val pad = (2f * unit).toInt()
+                icon.setBounds(rect.left + pad, rect.top + pad, rect.right - pad, rect.bottom - pad)
+                icon.draw(canvas)
+            } else {
+                val oldWidth = paint.strokeWidth
+                paint.strokeWidth = 2.2f * unit
+                canvas.drawLine(cx, cy - 8f * unit, cx, cy + 2f * unit, paint)
+                canvas.drawLine(cx - 4f * unit, cy - 1f * unit, cx, cy + 3f * unit, paint)
+                canvas.drawLine(cx + 4f * unit, cy - 1f * unit, cx, cy + 3f * unit, paint)
+                canvas.drawLine(cx - 8f * unit, cy + 7f * unit, cx - 8f * unit, cy + 10f * unit, paint)
+                canvas.drawLine(cx - 8f * unit, cy + 10f * unit, cx + 8f * unit, cy + 10f * unit, paint)
+                canvas.drawLine(cx + 8f * unit, cy + 7f * unit, cx + 8f * unit, cy + 10f * unit, paint)
+                paint.strokeWidth = oldWidth
+            }
+        }
+        override fun setAlpha(alpha: Int) { paint.alpha = alpha }
+        override fun setColorFilter(colorFilter: android.graphics.ColorFilter?) { paint.colorFilter = colorFilter }
+        @Deprecated("Required for Drawable") override fun getOpacity(): Int = PixelFormat.TRANSLUCENT
+        override fun getIntrinsicWidth() = 24
+        override fun getIntrinsicHeight() = 24
+    }
+
+    /** An intent handoff does not reveal whether an app is tracked. Keep the
+     * accessible label neutral until ObtainX itself displays its result. */
+    private fun actionDescription(activity: Activity) = text(activity,
+        "Open in ObtainX. Long press for settings.",
+        "Abrir no ObtainX. Toque e segure para configurações.")
+
+    private fun actionDrawable(
+        activity: Activity, showAction: Boolean, foreground: Int,
+    ): Drawable {
+        if (!showAction) return ActionIcon(foreground, true)
+        val launcher = try {
+            activity.packageManager.getApplicationIcon(TargetPackages.OBTAIN_X)
+                .constantState?.newDrawable()?.mutate()
+        } catch (_: PackageManager.NameNotFoundException) { null }
+        return ObtainXBrandIcon(launcher, foreground)
+    }
+
+    fun render(activity: Activity, page: PageBinding?,
+               onTap: (PageBinding) -> Unit, onAnchor: (String) -> Unit = {}) {
         if (settingsDialog != null && (settingsRoute !== page?.route || !ActionPolicy.ready(page))) {
             settingsDialog?.dismiss(); settingsDialog = null; settingsRoute = null
         }
@@ -237,16 +304,20 @@ internal class ObtainXPageAction {
         val (surface, foreground) = tonalSurface(activity)
         val view = ImageButton(activity).apply {
             tag = showAction
-            contentDescription = if (showAction) this@ObtainXPageAction.text(activity,
-                "Add to ObtainX. Long press for settings.", "Adicionar ao ObtainX. Toque e segure para configurações.")
-            else this@ObtainXPageAction.text(activity,
-                "ObtainX action settings", "Configurações da ação ObtainX")
-            setImageDrawable(ActionIcon(foreground, !showAction))
+            contentDescription = if (showAction) this@ObtainXPageAction.actionDescription(activity)
+                else this@ObtainXPageAction.text(activity,
+                    "ObtainX action settings", "Configurações da ação ObtainX")
+            setImageDrawable(actionDrawable(activity, showAction, foreground))
             scaleType = android.widget.ImageView.ScaleType.CENTER_INSIDE
             setPadding(dp(activity, 12), dp(activity, 12), dp(activity, 12), dp(activity, 12))
             backgroundTintList = null
             val shape = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(surface) }
-            background = RippleDrawable(ColorStateList.valueOf(if (foreground == Color.WHITE) 0x33ffffff else 0x33000000),shape,null)
+            // Forty-dp visual circle, 48dp interactive target: smaller and
+            // quieter than the M6 solid bubble while retaining accessibility.
+            background = InsetDrawable(
+                RippleDrawable(ColorStateList.valueOf(if (foreground == Color.WHITE) 0x33ffffff else 0x33000000), shape, null),
+                dp(activity, 4)
+            )
             minimumHeight = dp(activity, 48)
             minimumWidth = dp(activity, 48)
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES

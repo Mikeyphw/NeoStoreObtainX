@@ -11,8 +11,8 @@ android {
         applicationId = "io.github.mikeyphw.neostoreobtainx"
         minSdk = 26
         targetSdk = 35
-        versionCode = 7
-        versionName = "0.6.1-m6-header-visibility"
+        versionCode = 8
+        versionName = "0.7.0-m7-branded-icon"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
