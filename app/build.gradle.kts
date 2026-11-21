@@ -11,8 +11,8 @@ android {
         applicationId = "io.github.mikeyphw.neostoreobtainx"
         minSdk = 26
         targetSdk = 35
-        versionCode = 9
-        versionName = "0.8.0-m8-droidify"
+        versionCode = 10
+        versionName = "0.8.1-m9-droidify-scope"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

@@ -17,7 +17,7 @@ class DroidifyM8Contracts(unittest.TestCase):
         self.assertIn('TargetPackages.DROIDIFY ->', self.entry)
         self.assertIn('DroidifyPageHook.install(loader)',self.entry)
         self.assertIn('lpparam.processName != lpparam.packageName',self.entry)
-        self.assertIn('com.machiav3lli.fdroid,com.looker.droidify',self.manifest)
+        self.assertIn('@array/xposed_scope',self.manifest)
     def test_actual_native_toolbar_and_no_window_overlay(self):
         for token in ('onViewCreated','com.google.android.material.appbar.MaterialToolbar',
                       'getMenu','menu.add(0, ITEM_ID, 0, "Add to ObtainX")',
@@ -44,8 +44,8 @@ class DroidifyM8Contracts(unittest.TestCase):
         self.assertNotIn('ObtainXTrackedStatus',self.hook)
     def test_version_and_acceptance_docs(self):
         gradle=(ROOT/'app/build.gradle.kts').read_text()
-        self.assertIn('versionCode = 9',gradle)
-        self.assertIn('versionName = "0.8.0-m8-droidify"',gradle)
+        self.assertIn('versionCode = 10',gradle)
+        self.assertIn('versionName = "0.8.1-m9-droidify-scope"',gradle)
         doc=(ROOT/'docs/M8_DROIDIFY_ACCEPTANCE.md').read_text()
         self.assertIn('DEVICE_ACCEPTANCE=NOT_PERFORMED',doc)
         self.assertIn('RELEASE=NOT_PERFORMED',doc)

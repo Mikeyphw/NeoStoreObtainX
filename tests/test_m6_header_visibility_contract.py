@@ -39,8 +39,8 @@ class M6HeaderRecovery(unittest.TestCase):
 
     def test_release_pinned_and_device_pending(self):
         gradle=(ROOT/'app/build.gradle.kts').read_text()
-        self.assertIn('versionCode = 9',gradle)
-        self.assertIn('0.8.0-m8-droidify',gradle)
+        self.assertIn('versionCode = 10',gradle)
+        self.assertIn('0.8.1-m9-droidify-scope',gradle)
         d=(ROOT/'docs/M6_HEADER_VISIBILITY_ACCEPTANCE.md').read_text()
         self.assertIn('DEVICE_ACCEPTANCE=NOT_PERFORMED',d)
         self.assertIn('RELEASE=NOT_PERFORMED',d)
