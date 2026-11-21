@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Legacy LSPosed recommended scope: one package per entry. -->
+    <string-array name="xposed_scope">
+        <item>com.machiav3lli.fdroid</item>
+        <item>com.looker.droidify</item>
+    </string-array>
+</resources>

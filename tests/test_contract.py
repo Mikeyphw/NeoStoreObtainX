@@ -18,7 +18,10 @@ class BootstrapContractTests(unittest.TestCase):
         manifest = ET.parse(BASE / "AndroidManifest.xml")
         rows = {node.attrib.get(ANDROID + "name"):node for node in manifest.iter("meta-data")}
         self.assertEqual(rows["xposedmodule"].attrib[ANDROID + "value"], "true")
-        self.assertEqual(rows["xposedscope"].attrib[ANDROID + "value"], "com.machiav3lli.fdroid,com.looker.droidify")
+        self.assertEqual(rows["xposedscope"].attrib[ANDROID + "resource"], "@array/xposed_scope")
+        scope = ET.parse(BASE / "res/values/xposed_scope.xml")
+        self.assertEqual([n.text for n in scope.findall("./string-array[@name='xposed_scope']/item")],
+                         ["com.machiav3lli.fdroid", "com.looker.droidify"])
         self.assertEqual(rows["xposedminversion"].attrib[ANDROID + "value"], "82")
 
     def test_xposed_api_is_not_packaged(self):

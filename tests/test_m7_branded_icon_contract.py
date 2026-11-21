@@ -42,8 +42,8 @@ class M7BrandedIconContract(unittest.TestCase):
 
     def test_version_docs_and_later_fork_roadmap(self):
         gradle=(ROOT/'app/build.gradle.kts').read_text()
-        self.assertIn('versionCode = 9',gradle)
-        self.assertIn('versionName = "0.8.0-m8-droidify"',gradle)
+        self.assertIn('versionCode = 10',gradle)
+        self.assertIn('versionName = "0.8.1-m9-droidify-scope"',gradle)
         doc=(ROOT/'docs/M7_BRANDED_ICON_ACCEPTANCE.md').read_text()
         roadmap=(ROOT/'docs/FUTURE_OBTAINX_FORK_STATUS.md').read_text()
         self.assertIn('DEVICE_ACCEPTANCE=NOT_PERFORMED',doc)

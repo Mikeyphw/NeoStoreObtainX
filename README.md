@@ -112,3 +112,12 @@ Device testing and hosted Android compilation remain required for acceptance.
 See `docs/M8_DROIDIFY_ACCEPTANCE.md`.
 
 Droid-ify source pinned for M8: `Droid-ify/client` source commit `ff1453ed957f3b2382abce9a7eb9a9db8def3a3a` (tree `5ecefe5bfbc77e68d3cff486b162e2d7ee156983`).
+
+
+## M9 — Droid-ify compatibility and recommended LSPosed scope
+
+The Droid-ify 0.7.8/780 app-detail hook uses view ContextWrapper and inherited reflection
+instead of fragile Xposed helper best-match attachment calls, with failure-stage logs.
+The legacy LSPosed recommended scope is now `@array/xposed_scope` with exactly
+Neo Store and Droid-ify. Existing user-selected scope still needs checking in
+LSPosed Vector. See `docs/M9_DROIDIFY_REFLECTION_SCOPE.md`.

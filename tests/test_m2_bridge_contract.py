@@ -68,8 +68,8 @@ class M2BridgeContract(unittest.TestCase):
 
     def test_version_bump_and_milestone_remains_pending(self):
         gradle = (ROOT/'app/build.gradle.kts').read_text()
-        self.assertIn('versionCode = 9', gradle)
-        self.assertIn('0.8.0-m8-droidify', gradle)
+        self.assertIn('versionCode = 10', gradle)
+        self.assertIn('0.8.1-m9-droidify-scope', gradle)
         self.assertIn('this candidate', (ROOT/'docs/IMPLEMENTATION_PLAN.md').read_text())
         self.assertIn('**does not yet call the bridge**', (ROOT/'docs/M2_INTENT_BRIDGE_ACCEPTANCE.md').read_text())
 

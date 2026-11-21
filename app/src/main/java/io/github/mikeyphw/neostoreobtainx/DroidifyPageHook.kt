@@ -1,6 +1,7 @@
 package io.github.mikeyphw.neostoreobtainx
 
 import android.app.Activity
+import android.content.ContextWrapper
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -25,6 +26,8 @@ import java.lang.ref.WeakReference
  * Version pin is deliberately strict: only com.looker.droidify 0.7.8 (780).
  * Droid-ify's pinned release disables class-name obfuscation in app/proguard.pro.
  * The host fragment owns its toolbar, so there is no geometry guessing or overlay.
+ * The host's AndroidX class loader may expose different inherited methods:
+ * resolve Activity by ContextWrapper and use public inherited reflection. 
  * Every tap rebuilds a ProbeSnapshot from the *visible* fragment and paired
  * Product/Repository instances before invoking the existing trusted bridge.
  */
@@ -73,6 +76,40 @@ internal object DroidifyPageHook {
         return matched
     }
 
+    /** Resolve Android Activity from the actual host view, not a reflective
+     * Fragment.getActivity() call which may have been optimized in the host APK. */
+    private fun hostActivity(root: View): Activity? {
+        var current: android.content.Context? = root.context
+        val seen = HashSet<android.content.Context>()
+        for (depth in 0 until 16) {
+            val ctx = current ?: return null
+            if (!seen.add(ctx)) return null
+            if (ctx is Activity) return ctx
+            val wrapper = ctx as? ContextWrapper ?: return null
+            val next = wrapper.baseContext ?: return null
+            if (next === ctx) return null
+            current = next
+        }
+        return null
+    }
+
+    /** Public inherited method discovery avoids XposedHelpers.callMethod()
+     * failing on a method optimized or moved by R8 in the host hierarchy. */
+    private fun inheritedGetter(instance: Any, name: String): Any? {
+        val method = instance.javaClass.methods.firstOrNull {
+            it.name == name && it.parameterTypes.isEmpty()
+        } ?: return null
+        return method.invoke(instance)
+    }
+
+    private fun fragmentArguments(fragment: Any): Bundle? {
+        val fromGetter = try { inheritedGetter(fragment, "getArguments") as? Bundle }
+            catch (_: ReflectiveOperationException) { null }
+        if (fromGetter != null) return fromGetter
+        return try { XposedHelpers.getObjectField(fragment, "mArguments") as? Bundle }
+            catch (_: Throwable) { null }
+    }
+
     /** Locate the actual host MaterialToolbar via its native view hierarchy.
      * Avoid depending on R8 retaining a Kotlin property getter. */
     private fun toolbar(view: View?): View? {
@@ -82,7 +119,11 @@ internal object DroidifyPageHook {
         var count = 0
         while (todo.isNotEmpty() && ++count <= 200) {
             val next = todo.removeFirst()
-            if (next.javaClass.name == "com.google.android.material.appbar.MaterialToolbar") return next
+            var type: Class<*>? = next.javaClass
+            while (type != null) {
+                if (type.name == "com.google.android.material.appbar.MaterialToolbar") return next
+                type = type.superclass
+            }
             if (next is ViewGroup) for (i in 0 until next.childCount.coerceAtMost(50)) {
                 todo.add(next.getChildAt(i))
             }
@@ -91,38 +132,60 @@ internal object DroidifyPageHook {
     }
 
     private fun attach(fragment: Any, view: View?) {
-        val activity = XposedHelpers.callMethod(fragment, "getActivity") as? Activity ?: return
-        if (!pinned(activity) || view == null) return
-        val pkg = routePackage(fragment) ?: return
-        if (!packagePattern.matches(pkg)) { log("INVALID_ROUTE"); return }
-        val tb = toolbar(view) ?: run { log("NATIVE_TOOLBAR_MISSING"); return }
-        val menu = (XposedHelpers.callMethod(tb, "getMenu") as? Menu) ?: return
-        if (menu.findItem(ITEM_ID) != null) return
-        val action = menu.add(0, ITEM_ID, 0, "Add to ObtainX")
-        action.setIcon(preferredIcon(activity))
-        action.setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM)
-        action.setContentDescription("Add to ObtainX; opens import or existing app")
-        val weakFragment = WeakReference(fragment)
-        action.setOnMenuItemClickListener {
-            val bound = weakFragment.get()
-            if (bound != null) tapped(bound, activity, pkg)
-            true
+        var stage = "VIEW"
+        try {
+            if (view == null) return
+            stage = "HOST_ACTIVITY"
+            val activity = hostActivity(view) ?: run {
+                log("ATTACH_REFUSED_ACTIVITY_CONTEXT")
+                return
+            }
+            if (!pinned(activity)) return
+            stage = "ROUTE_ARGUMENTS"
+            val pkg = routePackage(fragment) ?: run {
+                log("ATTACH_REFUSED_ROUTE_UNAVAILABLE")
+                return
+            }
+            if (!packagePattern.matches(pkg)) { log("INVALID_ROUTE"); return }
+            stage = "NATIVE_TOOLBAR"
+            val tb = toolbar(view) ?: run { log("NATIVE_TOOLBAR_MISSING"); return }
+            stage = "TOOLBAR_MENU"
+            val menu = inheritedGetter(tb, "getMenu") as? Menu ?: run {
+                log("ATTACH_REFUSED_TOOLBAR_MENU")
+                return
+            }
+            if (menu.findItem(ITEM_ID) != null) return
+            stage = "MENU_ADD"
+            val action = menu.add(0, ITEM_ID, 0, "Add to ObtainX")
+            stage = "ICON_AND_LISTENER"
+            action.setIcon(preferredIcon(activity))
+            action.setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM)
+            action.setContentDescription("Add to ObtainX; opens import or existing app")
+            val weakFragment = WeakReference(fragment)
+            action.setOnMenuItemClickListener {
+                val bound = weakFragment.get()
+                if (bound != null) tapped(bound, activity, pkg)
+                true
+            }
+            log("NATIVE_TOOLBAR_ACTION_ADDED")
+        } catch (error: Throwable) {
+            // Stage only: never log package IDs, repository URLs or app metadata.
+            log("ATTACH_REFUSED_${stage}_${error.javaClass.simpleName}")
         }
-        log("NATIVE_TOOLBAR_ACTION_ADDED")
     }
 
-    private fun routePackage(fragment: Any): String? {
-        val arguments = XposedHelpers.callMethod(fragment, "getArguments") as? Bundle ?: return null
-        return arguments.getString(APP_ROUTE_KEY)
-    }
+    private fun routePackage(fragment: Any): String? =
+        fragmentArguments(fragment)?.getString(APP_ROUTE_KEY)
 
     private fun liveSnapshot(fragment: Any, route: String): ProbeSnapshot {
         val pairs = XposedHelpers.getObjectField(fragment, "products") as? List<*>
             ?: return ProbeSnapshot(ProbePhase.WAITING, route)
         // Match Droid-ify's own SOURCE and SHARE actions: they use products[0].
         val selected = pairs.firstOrNull() ?: return ProbeSnapshot(ProbePhase.WAITING, route)
-        val product = XposedHelpers.callMethod(selected, "getFirst") ?: return ProbeSnapshot(ProbePhase.WAITING, route)
-        val repo = XposedHelpers.callMethod(selected, "getSecond") ?: return ProbeSnapshot(ProbePhase.WAITING, route)
+        val product = inheritedGetter(selected, "getFirst")
+            ?: return ProbeSnapshot(ProbePhase.WAITING, route)
+        val repo = inheritedGetter(selected, "getSecond")
+            ?: return ProbeSnapshot(ProbePhase.WAITING, route)
         val productPackage = XposedHelpers.getObjectField(product, "packageName") as? String
         val prodRepoId = (XposedHelpers.getObjectField(product, "repositoryId") as? Number)?.toLong()
         val repoId = (XposedHelpers.getObjectField(repo, "id") as? Number)?.toLong()
@@ -130,8 +193,7 @@ internal object DroidifyPageHook {
         val auth = XposedHelpers.getObjectField(repo, "authentication") as? String
         if (!auth.isNullOrBlank()) return ProbeSnapshot(ProbePhase.UNSUPPORTED_SOURCE, route)
         // If a source-specific route was requested, do not silently change repos.
-        val selectedAddress = (XposedHelpers.callMethod(fragment, "getArguments") as? Bundle)
-            ?.getString(REPO_ROUTE_KEY)
+        val selectedAddress = fragmentArguments(fragment)?.getString(REPO_ROUTE_KEY)
         if (!selectedAddress.isNullOrBlank() && selectedAddress != address) {
             return ProbeSnapshot(ProbePhase.WAITING, route)
         }
@@ -145,9 +207,9 @@ internal object DroidifyPageHook {
         try {
             if (!pinned(activity) || activity.isFinishing || activity.isDestroyed ||
                 !activity.hasWindowFocus()) return
-            val view = XposedHelpers.callMethod(fragment, "getView") as? View ?: return
+            val view = inheritedGetter(fragment, "getView") as? View ?: return
             if (!view.isAttachedToWindow || !view.isShown ||
-                (XposedHelpers.callMethod(fragment, "isResumed") as? Boolean) != true ||
+                (inheritedGetter(fragment, "isResumed") as? Boolean) != true ||
                 routePackage(fragment) != boundPackage) return
             // Re-read the selected package and source on *this* visible page.
             val snapshot = liveSnapshot(fragment, boundPackage)
