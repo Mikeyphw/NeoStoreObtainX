@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "repository": "Mikeyphw/NeoStoreObtainX",
+  "base_branch": "main",
+  "event": "pull_request",
+  "required_workflows": [
+    {
+      "name": "NeoStoreObtainX CI",
+      "workflow_id": 425663365
+    }
+  ],
+  "release_qualification": "separate"
+}
