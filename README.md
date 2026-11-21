@@ -2,7 +2,7 @@
 
 A Neo Store–scoped LSPosed module to transfer selected app listings to ObtainX while keeping repository identity intact.
 
-> **M1 read-only detection**: the LSPosed entrypoint observes Neo Store 1.3.3 navigation and its matching app/repository metadata, logging only state transitions. It does **not** display a button, intercept downloads, start ObtainX, or install anything. Runtime behavior requires device acceptance.
+> **M2 bridge stage**: the LSPosed entrypoint still only observes Neo Store 1.3.3 read-only. A source-validated ObtainX deep-link bridge has been added for future explicit user interaction. It is **not yet wired to any button or lifecycle callback** and does not automatically open ObtainX, download, install or save anything. Hosted and device acceptance remain separate.
 
 ## Scope
 
@@ -15,7 +15,7 @@ See [audit](docs/SOURCE_AUDIT.md), [implementation plan](docs/IMPLEMENTATION_PLA
 
 ## Build / verification
 
-The M1 native overlay does **not** require Gradle on Termux; hosted CI runs the real Android build. Hosted CI uses JDK 17, Android SDK 35, Gradle 8.11.1, AGP 8.9.2, Kotlin 2.1.20.
+The M2 native overlay does **not** require Gradle on Termux; hosted CI runs the real Android build. Hosted CI uses JDK 17, Android SDK 35, Gradle 8.11.1, AGP 8.9.2, Kotlin 2.1.20.
 
 ```bash
 python3 -B -m unittest discover -s tests -p 'test_*.py' -v
@@ -26,6 +26,8 @@ Gradle is expected from a trusted local installation or the pinned GitHub Action
 
 No release or Android-device acceptance is implied by a passing CI build.
 
-## M1 read-only probe
+## M1 read-only probe and M2 intent bridge
 
-Read [the M1 acceptance plan](docs/M1_READONLY_ACCEPTANCE.md) for exact version gating, lifecycle behavior, privacy, and on-device validation. No UI is injected until M2/M3.
+Read [the M1 acceptance plan](docs/M1_READONLY_ACCEPTANCE.md) for exact version gating, lifecycle behavior, and privacy. M1 remains read-only.
+
+M2 implements a pure ObtainX JSON-seed policy and a strictly package-scoped Android VIEW bridge to ObtainX `dev.bikram.obtainx`. Its handler is resolved before launch; **launchFromUserTap** is exposed only to a future M3 explicit click action, never invoked by M1 polling. ObtainX owns the import preview, duplicate handling and final save. See [M2 acceptance](docs/M2_INTENT_BRIDGE_ACCEPTANCE.md). M3 will add the button and UI lifecycle validation; M4 remains production acceptance.
