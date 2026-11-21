@@ -48,3 +48,16 @@ DEX fields with `AppPageVM` constructor hooks and matches the route against
 `packageName` StateFlow on each poll/tap. Version 0.5.0-m4-r8-fields (5) must
 pass device acceptance before any UI/ObtainX success is claimed. See
 `docs/M4_R8_ACCEPTANCE.md`.
+
+
+## M5 — Source-first import and header icon candidate
+
+For Neo Store 1.3.3, prefer the source-code repository when ObtainX has a
+known adapter (GitHub, GitLab, Codeberg, SourceHut, SourceForge); otherwise
+preserve the active Neo Store listing. IzzyOnDroid explicitly uses its own
+adapter and app ID to avoid generic FDroidRepo import migration. A native
+48dp icon is anchored beside the Compose source-code accessibility node;
+no host Compose mutation or bottom-floating action remains. Header colors
+are approximated with system tonal values, not read from private Compose state.
+The icon hides when the anchor cannot be located safely, including small
+screens; it is not claimed to be a Compose child. See M5 acceptance docs.

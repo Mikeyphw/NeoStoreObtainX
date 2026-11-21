@@ -33,7 +33,8 @@ class ObtainXSeedPolicyTest {
     @Test fun izzyDoesNotUseGenericRepoAdapter() {
         val json = prepared(snapshot("https://apt.izzysoft.de/fdroid/repo"))
         assertTrue(json.contains("https://apt.izzysoft.de/fdroid/index/apk/org.example.app"))
-        assertFalse(json.contains("overrideSource"))
+        assertTrue(json.contains("\"overrideSource\":\"IzzyOnDroid\""))
+        assertTrue(json.contains("appIdOrName"))
     }
 
     @Test fun routeChangeRefusesStaleSnapshot() {
@@ -70,4 +71,18 @@ class ObtainXSeedPolicyTest {
         assertEquals("\"a\\\"b\\\\c\\n\\u2028\"",
             ObtainXSeedPolicy.quote("a\"b\\c\n\u2028"))
     }
+    @Test fun sourceCodeRepositoryPreferredWhenSupported() {
+        val preferred = ProbePolicy.resolve("org.example.app", "org.example.app", "org.example.app",
+            7L, 7L, "https://apt.izzysoft.de/fdroid/repo", "https://github.com/acme/client")
+        val json = prepared(preferred)
+        assertTrue(json.contains("https://github.com/acme/client"))
+        assertFalse(json.contains("IzzyOnDroid"))
+    }
+
+    @Test fun unsupportedSourceCodeSitePreservesIzzyAdapter() {
+        val preferred = ProbePolicy.resolve("org.example.app", "org.example.app", "org.example.app",
+            7L, 7L, "https://apt.izzysoft.de/fdroid/repo", "https://project.example.org")
+        assertTrue(prepared(preferred).contains("IzzyOnDroid"))
+    }
+
 }

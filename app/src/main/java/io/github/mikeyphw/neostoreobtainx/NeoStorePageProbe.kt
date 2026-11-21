@@ -26,7 +26,7 @@ internal class NeoStorePageProbe private constructor(private val symbols: Symbol
         val vmPackageFlow: Field, val vmCoreStateFlow: Field,
         val stateValue: Method,
         val suggestedRepo: Field, val embeddedProduct: Field,
-        val productPackage: Field, val productRepositoryId: Field,
+        val productPackage: Field, val productRepositoryId: Field, val productSourceSite: Field, val productWebSite: Field,
         val repositoryId: Field, val repositoryAddress: Field, val repositoryAuthentication: Field,
         val pairFirst: Field, val pairSecond: Field,
     )
@@ -61,7 +61,7 @@ internal class NeoStorePageProbe private constructor(private val symbols: Symbol
                     releaseField(viewModel, "packageName"), releaseField(viewModel, "coreAppState"),
                     stateFlow.getMethod("getValue"),
                     releaseField(core, "suggestedProductRepo"), releaseField(embedded, "product"),
-                    releaseField(product, "packageName"), releaseField(product, "repositoryId"),
+                    releaseField(product, "packageName"), releaseField(product, "repositoryId"), releaseField(product, "source"), releaseField(product, "web"),
                     releaseField(repository, "id"), releaseField(repository, "address"),
                     releaseField(repository, "authentication"),
                     releaseField(hostPair, "first"), releaseField(hostPair, "second"),
@@ -255,9 +255,11 @@ internal class NeoStorePageProbe private constructor(private val symbols: Symbol
         val product = embedded?.let { symbols.embeddedProduct.get(it) }
         val productPkg = product?.let { symbols.productPackage.get(it) as? String }
         val productId = product?.let { symbols.productRepositoryId.get(it) as? Long }
+        val productSource = product?.let { (symbols.productSourceSite.get(it) as? String)?.takeIf(String::isNotBlank)
+            ?: (symbols.productWebSite.get(it) as? String) }
         val repoId = repo?.let { symbols.repositoryId.get(it) as? Long }
         val repoUrl = repo?.let { symbols.repositoryAddress.get(it) as? String }
-        return ProbePolicy.resolve(active, active, productPkg, productId, repoId, repoUrl)
+        return ProbePolicy.resolve(active, active, productPkg, productId, repoId, repoUrl, productSource)
     }
 
     private fun stop() {

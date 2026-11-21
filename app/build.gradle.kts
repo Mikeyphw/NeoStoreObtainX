@@ -11,8 +11,8 @@ android {
         applicationId = "io.github.mikeyphw.neostoreobtainx"
         minSdk = 26
         targetSdk = 35
-        versionCode = 5
-        versionName = "0.5.0-m4-r8-fields"
+        versionCode = 6
+        versionName = "0.6.0-m5-source-header"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

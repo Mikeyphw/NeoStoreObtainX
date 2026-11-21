@@ -26,7 +26,7 @@ class M2BridgeContract(unittest.TestCase):
     def test_source_revalidated_not_trusted_from_cached_snapshot(self):
         self.assertIn('currentRoutePackage', self.policy)
         self.assertIn('pkg != currentRoutePackage', self.policy)
-        self.assertIn('SourceMapper.map(pkg, address)', self.policy)
+        self.assertIn('SourceMapper.preferred(pkg, address, snapshot.productSourceSite)', self.policy)
         self.assertIn('canonical.url != snapshot.sourceUrl', self.policy)
         self.assertIn('canonical.overrideSource != snapshot.overrideSource', self.policy)
 
@@ -68,8 +68,8 @@ class M2BridgeContract(unittest.TestCase):
 
     def test_version_bump_and_milestone_remains_pending(self):
         gradle = (ROOT/'app/build.gradle.kts').read_text()
-        self.assertIn('versionCode = 5', gradle)
-        self.assertIn('0.5.0-m4-r8-fields', gradle)
+        self.assertIn('versionCode = 6', gradle)
+        self.assertIn('0.6.0-m5-source-header', gradle)
         self.assertIn('this candidate', (ROOT/'docs/IMPLEMENTATION_PLAN.md').read_text())
         self.assertIn('**does not yet call the bridge**', (ROOT/'docs/M2_INTENT_BRIDGE_ACCEPTANCE.md').read_text())
 

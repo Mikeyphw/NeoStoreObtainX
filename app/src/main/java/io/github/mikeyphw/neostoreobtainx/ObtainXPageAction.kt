@@ -4,29 +4,36 @@ import android.app.Activity
 import android.app.AlertDialog
 import android.content.Context
 import android.content.res.Configuration
+import android.content.res.ColorStateList
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.PixelFormat
+import android.graphics.Rect
+import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.RippleDrawable
-import android.content.res.ColorStateList
 import android.os.Build
 import android.os.SystemClock
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
-import android.widget.Button
+import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.FrameLayout
+import android.widget.ImageButton
 import android.widget.Toast
 import java.lang.ref.WeakReference
+import java.util.ArrayDeque
 
-/** Only the module's own small native View is added or removed; no host children are altered. */
+/** Source-button-anchored header action. This adds only one module-owned View.
+ * Never changes Compose content, host listeners or existing actions. */
 internal class ObtainXPageAction {
-    private var button: WeakReference<Button>? = null
+    private var button: WeakReference<ImageButton>? = null
     private var binding: PageBinding? = null
     private var settingsDialog: AlertDialog? = null
     private var settingsRoute: Any? = null
     private var lastTap = -1000L
-    private val margin = 12
 
     private fun dp(activity: Activity, value: Int): Int =
         (value * activity.resources.displayMetrics.density + 0.5f).toInt()
@@ -37,77 +44,181 @@ internal class ObtainXPageAction {
         "io.github.mikeyphw.neostoreobtainx.ui", Context.MODE_PRIVATE,
     ).getBoolean("show_action", true)
 
-    private data class Edges(val left: Int, val right: Int, val bottom: Int, val ime: Boolean)
-    private fun edges(root: View): Edges? {
-        val insets = root.rootWindowInsets ?: return null
-        return if (Build.VERSION.SDK_INT >= 30) {
-            val bars = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
-            Edges(bars.left, bars.right, bars.bottom, insets.isVisible(WindowInsets.Type.ime()))
-        } else {
+    private fun imeVisible(root: View): Boolean {
+        val insets = root.rootWindowInsets ?: return true
+        return if (Build.VERSION.SDK_INT >= 30) insets.isVisible(WindowInsets.Type.ime())
+        else {
             @Suppress("DEPRECATION")
-            Edges(insets.systemWindowInsetLeft, insets.systemWindowInsetRight,
-                insets.systemWindowInsetBottom, insets.systemWindowInsetBottom > insets.stableInsetBottom)
+            val shown = insets.systemWindowInsetBottom > insets.stableInsetBottom
+            shown
         }
     }
 
     fun visible(activity: Activity): Boolean = !activity.isFinishing && !activity.isDestroyed &&
         activity.hasWindowFocus() && !activity.isInPictureInPictureMode
 
+    /** Scan Compose's accessibility *virtual* children for its already-existing
+     * SourceCodeButton. Never infer coordinates from screen sizes or app content.
+     * No accessibility service, screen capture or host View mutations needed. */
+    private fun anchor(activity: Activity, root: FrameLayout): Rect? {
+        val nameId = activity.resources.getIdentifier("source_code", "string", TargetPackages.NEO_STORE)
+        if (nameId == 0) return null
+        val name = activity.getString(nameId)
+        val rootScreen = IntArray(2)
+        root.getLocationOnScreen(rootScreen)
+        val search = ArrayDeque<AccessibilityNodeInfo>()
+        val rootNode = root.createAccessibilityNodeInfo() ?: return null
+        search.addLast(rootNode)
+        var count = 0
+        var found: Rect? = null
+        try {
+            while (search.isNotEmpty() && count++ < 240) {
+                val node = search.removeFirst()
+                try {
+                    val description = node.contentDescription?.toString()
+                    if (description == name) {
+                        val rect = Rect()
+                        node.getBoundsInScreen(rect)
+                        // Source control must be a small header icon, not a link
+                        // elsewhere in the scrollable app content.
+                        if (rect.width() in dp(activity, 18)..dp(activity, 64) &&
+                            rect.height() in dp(activity, 18)..dp(activity, 64) &&
+                            rect.top >= rootScreen[1] &&
+                            rect.bottom <= rootScreen[1] + dp(activity, 210)) {
+                            found = rect
+                            break
+                        }
+                    }
+                    for (i in 0 until node.childCount.coerceAtMost(50)) {
+                        val child = node.getChild(i)
+                        if (child != null) search.addLast(child)
+                    }
+                } finally {
+                    @Suppress("DEPRECATION")
+                    node.recycle()
+                }
+            }
+        } catch (_: RuntimeException) {
+            found = null
+        } finally {
+            while (search.isNotEmpty()) {
+                @Suppress("DEPRECATION")
+                search.removeFirst().recycle()
+            }
+        }
+        return found
+    }
+
+    private fun position(activity: Activity, root: FrameLayout, view: ImageButton, source: Rect): Boolean {
+        val rootLocation = IntArray(2)
+        root.getLocationOnScreen(rootLocation)
+        val size = dp(activity, 48)
+        val gap = dp(activity, 8)
+        // Place immediately before SourceCodeButton in reading direction.
+        val rtl = root.layoutDirection == View.LAYOUT_DIRECTION_RTL
+        val xScreen = if (rtl) source.right + gap else source.left - gap - size
+        val yScreen = source.centerY() - size / 2
+        val x = xScreen - rootLocation[0]
+        val y = yScreen - rootLocation[1]
+        // No bottom floating fallback and no overlap with source or close icons.
+        // Reject insufficient header space (for example narrow screens).
+        if (x < dp(activity, 66) || y < 0 || x + size > root.width ||
+            y + size > root.height || imeVisible(root)) return false
+        val params = view.layoutParams as? FrameLayout.LayoutParams ?: return false
+        if (params.leftMargin != x || params.topMargin != y) {
+            params.leftMargin = x; params.topMargin = y; view.layoutParams = params
+        }
+        return true
+    }
+
+    private fun tonalSurface(activity: Activity): Pair<Int, Int> {
+        val night = activity.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+        // Android 12+ system neutral palettes track Material You; otherwise a
+        // neutral tonal fallback. Never read private host Compose state.
+        val neutralId = activity.resources.getIdentifier(
+            if (night) "system_neutral2_700" else "system_neutral2_100", "color", "android")
+        val surface = if (Build.VERSION.SDK_INT >= 31 && neutralId != 0)
+            activity.resources.getColor(neutralId, activity.theme)
+        else if (night) Color.rgb(55, 55, 55) else Color.rgb(235, 235, 235)
+        return surface to (if (night) Color.WHITE else Color.rgb(35, 35, 35))
+    }
+
+    private class ActionIcon(private val color: Int, private val gear: Boolean) : Drawable() {
+        private val pen = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            this.color = this@ActionIcon.color; style = Paint.Style.STROKE; strokeWidth = 2.5f; strokeCap = Paint.Cap.ROUND
+        }
+        override fun draw(canvas: Canvas) {
+            val rect = bounds
+            val cx = rect.exactCenterX(); val cy = rect.exactCenterY()
+            val scale = minOf(rect.width(), rect.height()) / 24f
+            val oldWidth = pen.strokeWidth
+            pen.strokeWidth = 2.5f * scale
+            if (gear) {
+                canvas.drawCircle(cx, cy, 7f * scale, pen)
+                canvas.drawCircle(cx, cy, 2.5f * scale, pen)
+                for (index in 0..7) {
+                    val a = Math.PI * index / 4
+                    val x1 = cx + (9 * kotlin.math.cos(a)).toFloat() * scale
+                    val y1 = cy + (9 * kotlin.math.sin(a)).toFloat() * scale
+                    val x2 = cx + (11 * kotlin.math.cos(a)).toFloat() * scale
+                    val y2 = cy + (11 * kotlin.math.sin(a)).toFloat() * scale
+                    canvas.drawLine(x1,y1,x2,y2,pen)
+                }
+            } else {
+                canvas.drawCircle(cx, cy, 9f * scale, pen)
+                canvas.drawLine(cx - 5f * scale, cy, cx + 5f * scale, cy, pen)
+                canvas.drawLine(cx, cy - 5f * scale, cx, cy + 5f * scale, pen)
+            }
+            pen.strokeWidth = oldWidth
+        }
+        override fun setAlpha(alpha: Int) { pen.alpha = alpha }
+        override fun setColorFilter(colorFilter: android.graphics.ColorFilter?) { pen.colorFilter = colorFilter }
+        @Deprecated("Required for Drawable") override fun getOpacity(): Int = PixelFormat.TRANSLUCENT
+        override fun getIntrinsicWidth(): Int = 24
+        override fun getIntrinsicHeight(): Int = 24
+    }
+
     fun render(activity: Activity, page: PageBinding?, onTap: (PageBinding) -> Unit) {
-        // The dialog itself temporarily takes focus; close it only on actual
-        // navigation, unready data or lifecycle stop, not its own focus change.
         if (settingsDialog != null && (settingsRoute !== page?.route || !ActionPolicy.ready(page))) {
             settingsDialog?.dismiss(); settingsDialog = null; settingsRoute = null
         }
         if (!visible(activity) || !ActionPolicy.ready(page)) { removeButton(); return }
         val root = activity.findViewById<View>(android.R.id.content) as? FrameLayout
-        val insets = root?.let(::edges)
-        if (root == null || insets == null || insets.ime || !root.isShown ||
-            root.width < dp(activity, 160) || root.height < dp(activity, 160)) {
-            removeButton(); return
-        }
+        if (root == null || !root.isShown || root.width < dp(activity, 230) ||
+            root.height < dp(activity, 160) || imeVisible(root)) { removeButton(); return }
+        val source = anchor(activity, root) ?: run { removeButton(); return }
         val showAction = enabled(activity)
         val existing = button?.get()
         if (existing != null && existing.parent === root && binding?.route === page?.route &&
             binding?.snapshot == page?.snapshot && existing.tag == showAction) {
-            position(activity, root, existing, insets)
+            if (!position(activity, root, existing, source)) removeButton()
             return
         }
         removeButton()
         val currentPage = page ?: return
-        val view = Button(activity).apply {
+        val (surface, foreground) = tonalSurface(activity)
+        val view = ImageButton(activity).apply {
             tag = showAction
-            text = if (showAction) this@ObtainXPageAction.text(activity, "Add to ObtainX", "Adicionar ao ObtainX") else "⚙"
             contentDescription = if (showAction) this@ObtainXPageAction.text(activity,
                 "Add to ObtainX. Long press for settings.", "Adicionar ao ObtainX. Toque e segure para configurações.")
-                else this@ObtainXPageAction.text(activity, "ObtainX action settings", "Configurações da ação ObtainX")
-            setAllCaps(false)
-            textSize = 14f
-            minHeight = dp(activity, 48)
-            minimumHeight = dp(activity, 48)
-            minWidth = dp(activity, 48)
-            minimumWidth = dp(activity, 48)
-            setPadding(dp(activity, 16), dp(activity, 8), dp(activity, 16), dp(activity, 8))
-            // A neutral high-contrast surface works independently of the host's Compose theme.
-            val dark = activity.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
-            val fg = if (dark) Color.BLACK else Color.WHITE
-            val bg = if (dark) Color.WHITE else Color.rgb(28, 28, 28)
-            setTextColor(fg)
+            else this@ObtainXPageAction.text(activity,
+                "ObtainX action settings", "Configurações da ação ObtainX")
+            setImageDrawable(ActionIcon(foreground, !showAction))
+            scaleType = android.widget.ImageView.ScaleType.CENTER_INSIDE
+            setPadding(dp(activity, 12), dp(activity, 12), dp(activity, 12), dp(activity, 12))
             backgroundTintList = null
-            val shape = GradientDrawable().apply {
-                setColor(bg); cornerRadius = dp(activity, 24).toFloat()
-                setStroke(dp(activity, 1), if (dark) Color.DKGRAY else Color.LTGRAY)
-            }
-            background = RippleDrawable(ColorStateList.valueOf(if (dark) 0x22000000 else 0x33ffffff), shape, null)
-            elevation = dp(activity, 6).toFloat()
-            isFocusable = true
+            val shape = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(surface) }
+            background = RippleDrawable(ColorStateList.valueOf(if (foreground == Color.WHITE) 0x33ffffff else 0x33000000),shape,null)
+            minimumHeight = dp(activity, 48)
+            minimumWidth = dp(activity, 48)
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
+            isFocusable = true
         }
         val weakActivity = WeakReference(activity)
         view.setOnClickListener {
             val host = weakActivity.get() ?: return@setOnClickListener
             if (!visible(host) || button?.get() !== view || !view.isAttachedToWindow ||
-                edges(view)?.ime != false || !view.isShown) return@setOnClickListener
+                imeVisible(view) || !view.isShown) return@setOnClickListener
             if (!showAction) { settings(host, currentPage.route); return@setOnClickListener }
             if (!enabled(host)) return@setOnClickListener
             val now = SystemClock.elapsedRealtime()
@@ -122,21 +233,8 @@ internal class ObtainXPageAction {
         }
         binding = currentPage
         button = WeakReference(view)
-        root.addView(view, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM or Gravity.END))
-        position(activity, root, view, insets)
-    }
-
-    private fun position(activity: Activity, root: FrameLayout, view: Button, insets: Edges) {
-        val space = dp(activity, margin)
-        val max = (root.width - insets.left - insets.right - 2 * space).coerceAtLeast(dp(activity, 48))
-        if (view.maxWidth != max) view.maxWidth = max
-        val params = view.layoutParams as? FrameLayout.LayoutParams ?: return
-        val end = space + if (root.layoutDirection == View.LAYOUT_DIRECTION_RTL) insets.left else insets.right
-        val bottom = space + insets.bottom
-        if (params.marginEnd != end || params.bottomMargin != bottom) {
-            params.marginEnd = end; params.bottomMargin = bottom; view.layoutParams = params
-        }
+        root.addView(view, FrameLayout.LayoutParams(dp(activity, 48),dp(activity, 48),Gravity.TOP or Gravity.LEFT))
+        if (!position(activity,root,view,source)) removeButton()
     }
 
     private fun settings(activity: Activity, route: Any) {
@@ -168,7 +266,7 @@ internal class ObtainXPageAction {
                 BridgeFailure.NO_EXPORTED_TARGET -> text(activity, "ObtainX is unavailable.", "ObtainX indisponível.")
                 BridgeFailure.LAUNCH_REJECTED -> text(activity, "Could not open ObtainX.", "Não foi possível abrir o ObtainX.")
             }
-            Toast.makeText(activity, message, Toast.LENGTH_SHORT).show()
+            Toast.makeText(activity,message,Toast.LENGTH_SHORT).show()
         }
     }
 

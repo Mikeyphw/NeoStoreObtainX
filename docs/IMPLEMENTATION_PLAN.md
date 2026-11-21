@@ -57,3 +57,11 @@ reflection failed on Neo Store 1.3.3. The M4 patch changes only the module
 probe, version and structural tests/docs, retains the exact app/intent policy
 and signing infrastructure, and requires new signed Android device acceptance.
 No claims of completed device or release qualification.
+
+
+## M5 — Source-first ObtainX handoff and header-anchored icon (candidate)
+- [x] Select verified supported upstream source site ahead of Neo Store listing.
+- [x] Explicit IzzyOnDroid adapter and app identifier to avoid generic repo rewrite.
+- [x] Replace bottom-floating text button with accessibility-anchored tonal icon.
+- [ ] Hosted compilation, unit tests and lint.
+- [ ] Real-device header positioning, screen reader, rotation and target import acceptance.
