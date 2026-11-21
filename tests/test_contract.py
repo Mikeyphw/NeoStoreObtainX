@@ -14,7 +14,7 @@ class BootstrapContractTests(unittest.TestCase):
         self.assertEqual(entry, "io.github.mikeyphw.neostoreobtainx.NeoStoreEntry")
         source = (BASE / "java/io/github/mikeyphw/neostoreobtainx/NeoStoreEntry.kt").read_text()
         self.assertIn("IXposedHookLoadPackage", source)
-        self.assertIn("feature hooks disabled", source)
+        self.assertIn("NeoStorePageProbe.install(loader)", source)
         manifest = ET.parse(BASE / "AndroidManifest.xml")
         rows = {node.attrib.get(ANDROID + "name"):node for node in manifest.iter("meta-data")}
         self.assertEqual(rows["xposedmodule"].attrib[ANDROID + "value"], "true")
