@@ -40,9 +40,13 @@ jobs:
           gradle-version: '8.11.1'
       - name: Compile, unit tests, lint
         run: gradle --no-daemon :app:assembleDebug :app:testDebugUnitTest :app:lintDebug
-      - uses: actions/upload-artifact@v4
-        if: success()
-        with:
-          name: neostore-obtainx-bootstrap-debug
-          path: app/build/outputs/apk/debug/*.apk
-          if-no-files-found: error
+      - name: Verify debug APK was assembled (not distributed from PRs)
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          shopt -s nullglob
+          apks=(app/build/outputs/apk/debug/*.apk)
+          [[ ${#apks[@]} -eq 1 && -s "${apks[0]}" ]]
+          printf 'CI_DEBUG_APK_ASSEMBLED_NO_PUBLICATION=%s\n' "${apks[0]}"
+      - name: Compile release variant (not distributed from PRs)
+        run: gradle --no-daemon :app:assembleRelease

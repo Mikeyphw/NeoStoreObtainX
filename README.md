@@ -31,3 +31,7 @@ No release or Android-device acceptance is implied by a passing CI build.
 Read [the M1 acceptance plan](docs/M1_READONLY_ACCEPTANCE.md) for exact version gating, lifecycle behavior, and privacy. M1 remains read-only.
 
 M2 implements a pure ObtainX JSON-seed policy and a strictly package-scoped Android VIEW bridge to ObtainX `dev.bikram.obtainx`. Its handler is resolved before launch; **launchFromUserTap** is exposed only to a future M3 explicit click action, never invoked by M1 polling. ObtainX owns the import preview, duplicate handling and final save. See [M2 acceptance](docs/M2_INTENT_BRIDGE_ACCEPTANCE.md). M3 will add the button and UI lifecycle validation; M4 remains production acceptance.
+
+## Signed APK downloads
+
+Only the trusted `main` signing workflow publishes APKs. Debug and release use the same persistent project certificate. PR CI still builds and tests both variants, but never publishes APKs signed with the project key. See [Signing and downloads](docs/APK_SIGNING.md).

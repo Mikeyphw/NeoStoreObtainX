@@ -23,8 +23,9 @@ class CiRepairContractTests(unittest.TestCase):
         text = WORKFLOW.read_text(encoding='utf-8')
         self.assertIn("sdkmanager --install 'platforms;android-35' 'build-tools;35.0.0'", text)
         self.assertIn('gradle --no-daemon :app:assembleDebug :app:testDebugUnitTest :app:lintDebug', text)
-        self.assertIn('if: success()', text)
-        self.assertIn('if-no-files-found: error', text)
+        self.assertIn('CI_DEBUG_APK_ASSEMBLED_NO_PUBLICATION', text)
+        self.assertIn(':app:assembleRelease', text)
+        self.assertNotIn('actions/upload-artifact', text)
 
     def test_python_structural_checks_still_run_on_pr(self):
         text = WORKFLOW.read_text(encoding='utf-8')
